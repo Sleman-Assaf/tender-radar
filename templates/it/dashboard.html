@@ -1,0 +1,368 @@
+{# templates/it/dashboard.html — System Administration control panel #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}System Dashboard — TenderRadar{% endblock %}
+{% block eyebrow %}Super Admin · Administration{% endblock %}
+{% block page_title %}System Dashboard{% endblock %}
+{% block page_subtitle %}<p>Central administration for users, departments, roles, backups and system settings.</p>{% endblock %}
+
+{% block page_actions %}
+<form method="post" action="{% url 'tenders:it_backup_create' %}" style="display:inline;">
+  {% csrf_token %}
+  <input type="hidden" name="include_database" value="on">
+  <input type="hidden" name="include_media"    value="on">
+  <input type="hidden" name="include_config"   value="on">
+  <button type="submit" class="btn btn-ghost btn-sm">{% icon 'download' %}Create Backup</button>
+</form>
+<a href="{% url 'tenders:it_doc_add_source' %}" class="btn btn-ghost btn-sm"
+   data-save-as data-filename="TenderRadar_Adding_A_New_Source.pdf"
+   title="Section 7 — Adding a new portal with AI help (7 pages, PDF)">
+  {% icon 'plus' %}Add New Source
+</a>
+<div class="doc-menu">
+  <button type="button" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false">
+    {% icon 'book' %}Documentation {% icon 'chevron-down' 13 %}
+  </button>
+  <div class="doc-menu-panel" role="menu">
+    <a href="{% url 'tenders:it_documentation' %}" role="menuitem"
+       data-save-as data-filename="TenderRadar_Developer_Documentation.pdf">
+      Code Documentation
+      <span>43 pages · coding rules and every application function</span>
+    </a>
+    <a href="{% url 'tenders:user_guide' %}" role="menuitem"
+       data-save-as data-filename="TenderRadar_User_Guide.pdf">
+      User Guide
+      <span>44 pages · every screen and how to use it</span>
+    </a>
+  </div>
+</div>
+<a href="{% url 'tenders:it_user_add' %}" class="btn btn-gold btn-sm">{% icon 'plus' %}Add User</a>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='dashboard' %}{% include "it/_nav.html" %}{% endwith %}
+
+{# ── System overview ──────────────────────────────────────────────────────── #}
+<div class="sec-head"><h2>System Overview</h2></div>
+<div class="it-stats">
+  <div class="it-stat">
+    <div class="lbl">Total Users</div>
+    <div class="val">{{ total_users }}</div>
+    <div class="sub">{{ new_user_count }} added in {{ recent_days }} days</div>
+  </div>
+  <div class="it-stat ok">
+    <div class="lbl">Active Users</div>
+    <div class="val">{{ active_users }}</div>
+    <div class="sub"><a href="{% url 'tenders:it_users' %}?status=active">View active →</a></div>
+  </div>
+  <div class="it-stat {% if inactive_users %}warn{% endif %}">
+    <div class="lbl">Inactive Users</div>
+    <div class="val">{{ inactive_users }}</div>
+    <div class="sub"><a href="{% url 'tenders:it_users' %}?status=inactive">View inactive →</a></div>
+  </div>
+  <div class="it-stat">
+    <div class="lbl">Departments</div>
+    <div class="val">{{ total_departments }}</div>
+    <div class="sub">{{ department_heads }} with a head</div>
+  </div>
+  <div class="it-stat {% if system_status.ok %}ok{% else %}bad{% endif %}">
+    <div class="lbl">System Status</div>
+    <div class="val" style="font-size:1.3rem;padding-top:9px;">
+      {% if system_status.ok %}<span class="state-pill on">Operational</span>
+      {% else %}<span class="state-pill err">Degraded</span>{% endif %}
+    </div>
+    <div class="sub">
+      Database {{ system_status.database }}{% if system_status.last_scrape_at %} · scrapers {{ system_status.scheduler }}{% endif %}
+    </div>
+  </div>
+  <div class="it-stat {% if not last_backup %}bad{% endif %}">
+    <div class="lbl">Last Backup</div>
+    <div class="val" style="font-size:1.3rem;padding-top:9px;">
+      {% if last_backup %}{{ last_backup.created_at|date:"d M, H:i" }}{% else %}Never{% endif %}
+    </div>
+    <div class="sub">
+      {% if last_backup %}{{ last_backup.size_display }} · {{ last_backup.contents_display }}
+      {% else %}No backup has been taken yet{% endif %}
+    </div>
+  </div>
+  <div class="it-stat">
+    <div class="lbl">Next Scheduled Backup</div>
+    <div class="val" style="font-size:1.3rem;padding-top:9px;">
+      {% if next_backup_at %}{{ next_backup_at|date:"d M, H:i" }}{% else %}Off{% endif %}
+    </div>
+    <div class="sub">
+      {% if next_backup_at %}{{ schedule.get_frequency_display }} at {{ schedule.hour|stringformat:"02d" }}:00
+      {% else %}<a href="{% url 'tenders:it_backups' %}">Enable automatic backups →</a>{% endif %}
+    </div>
+  </div>
+  <div class="it-stat">
+    <div class="lbl">Backup Storage</div>
+    <div class="val">{{ backup_disk.count }}</div>
+    <div class="sub">{{ backup_disk.bytes|filesizeformat }} on disk</div>
+  </div>
+</div>
+
+{# ── Quick actions ────────────────────────────────────────────────────────── #}
+<div class="sec-head"><h2>Quick Actions</h2></div>
+<div class="it-grid" style="margin-bottom:8px;">
+  <a href="{% url 'tenders:it_user_add' %}" class="it-card">
+    <div class="ic">{% icon 'plus' 20 %}</div>
+    <div class="t">Add User</div>
+    <div class="d">Create an account, set its role and assign it to a department.</div>
+  </a>
+  <a href="{% url 'tenders:it_department_add' %}" class="it-card">
+    <div class="ic">{% icon 'building' 20 %}</div>
+    <div class="t">Add Department</div>
+    <div class="d">Create a department and nominate its head.</div>
+  </a>
+  <a href="{% url 'tenders:it_backups' %}" class="it-card">
+    <div class="ic">{% icon 'database' 20 %}</div>
+    <div class="t">Backup &amp; Restore</div>
+    <div class="d">Create or download a full backup, review history, roll the system back.</div>
+    <div class="m"><span><b>{{ backup_count }}</b> backups</span></div>
+  </a>
+  <a href="{% url 'tenders:it_settings' %}" class="it-card">
+    <div class="ic">{% icon 'sliders' 20 %}</div>
+    <div class="t">Open Settings</div>
+    <div class="d">E-mail, Microsoft Graph, AI and general system configuration.</div>
+  </a>
+</div>
+
+{# ── The modules that used to live in the main "System" menu ──────────────── #}
+<div class="sec-head"><h2>System Modules</h2></div>
+<div class="it-grid" style="margin-bottom:8px;">
+  <a href="{% url 'tenders:manage_hub' %}" class="it-card">
+    <div class="ic">{% icon 'globe' 20 %}</div>
+    <div class="t">Tender System</div>
+    <div class="d">Countries, scraper sources, tendering URLs, keywords, tender access and user feedback.</div>
+  </a>
+  <a href="{% url 'tenders:sources' %}" class="it-card">
+    <div class="ic">{% icon 'database' 20 %}</div>
+    <div class="t">Sources</div>
+    <div class="d">Every portal being scraped, its last run and its status. Run a source on demand.</div>
+  </a>
+  <a href="{% url 'tenders:manage_integrations' %}" class="it-card">
+    <div class="ic">{% icon 'message' 20 %}</div>
+    <div class="t">Integrations</div>
+    <div class="d">Microsoft Graph e-mail, LDAP sign-in and WhatsApp alerts.</div>
+  </a>
+  <a href="{% url 'tenders:manage_digest' %}" class="it-card">
+    <div class="ic">{% icon 'bell' 20 %}</div>
+    <div class="t">Notifications</div>
+    <div class="d">The daily digest: recipients, send time and test sends.</div>
+  </a>
+  <a href="{% url 'tenders:analytics_hub' %}" class="it-card">
+    <div class="ic">{% icon 'chart' 20 %}</div>
+    <div class="t">Analytics</div>
+    <div class="d">Sign-in, open-tender, portal-click, evaluation and scraper-health reports.</div>
+  </a>
+</div>
+
+{# ── Statistics ───────────────────────────────────────────────────────────── #}
+<div class="sec-head"><h2>User Statistics</h2><a class="lk" href="{% url 'tenders:it_users' %}">All users →</a></div>
+<div class="it-cols">
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'department' %}Users per Department</span></div>
+    <div class="it-list">
+      {% for d in departments %}
+      <div class="it-row">
+        <a class="grow nm" href="{% url 'tenders:it_department_detail' d.pk %}" style="color:inherit;">{{ d.name }}</a>
+        <div class="it-bar"><span style="width:{% widthratio d.employees max_dept_employees 100 %}%"></span></div>
+        <div class="num" style="min-width:28px;text-align:right;">{{ d.employees }}</div>
+      </div>
+      {% empty %}
+      <div class="it-empty">No departments yet. <a href="{% url 'tenders:it_department_add' %}">Create one →</a></div>
+      {% endfor %}
+      {% if unassigned_users %}
+      <div class="it-row" style="background:var(--paper);">
+        <div class="grow nm" style="color:var(--muted);">Unassigned</div>
+        <div class="num">{{ unassigned_users }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'shield' %}Users by Role</span>
+      <a class="lk" href="{% url 'tenders:it_roles' %}" style="font-size:.74rem;color:var(--muted);">Manage roles →</a>
+    </div>
+    <div class="it-list">
+      <div class="it-row"><span class="role-pill SUPER_ADMIN">Super Admin</span><div class="grow"></div><div class="num">{{ role_counts.SUPER_ADMIN }}</div></div>
+      <div class="it-row"><span class="role-pill USER">Regular User</span><div class="grow"></div><div class="num">{{ role_counts.USER }}</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'users' %}Recently Created Users</span></div>
+    <div class="it-list">
+      {% for u in recent_users %}
+      <div class="it-row">
+        <div class="grow">
+          <div class="nm">{{ u.get_full_name|default:u.username }}</div>
+          <div class="sm">{{ u.username }}{% if u.profile.department %} · {{ u.profile.department.name }}{% endif %}</div>
+        </div>
+        <div class="sm">{{ u.date_joined|date:"d M Y" }}</div>
+      </div>
+      {% empty %}<div class="it-empty">No users.</div>{% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'users' %}Recently Active Users</span></div>
+    <div class="it-list">
+      {% for u in recently_active %}
+      <div class="it-row">
+        <div class="grow">
+          <div class="nm">{{ u.get_full_name|default:u.username }}</div>
+          <div class="sm">{{ u.username }}</div>
+        </div>
+        <div class="sm">{{ u.last_login|timesince }} ago</div>
+      </div>
+      {% empty %}<div class="it-empty">Nobody has signed in yet.</div>{% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<div class="sec-head"><h2>Department Statistics</h2><a class="lk" href="{% url 'tenders:it_departments' %}">Manage departments →</a></div>
+<div class="it-cols">
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'users' %}Department Heads</span></div>
+    <div class="it-list">
+      {% for d in departments %}
+      <div class="it-row">
+        <div class="grow">
+          <div class="nm">{{ d.name }}</div>
+          <div class="sm">{{ d.employees }} employee{{ d.employees|pluralize }}</div>
+        </div>
+        {% if d.head %}
+          <div class="sm" style="text-align:right;">{{ d.head.get_full_name|default:d.head.username }}</div>
+        {% else %}
+          <span class="state-pill warn">No head</span>
+        {% endif %}
+      </div>
+      {% empty %}<div class="it-empty">No departments yet.</div>{% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'alert' %}Needs Attention</span></div>
+    <div class="it-list">
+      <div class="it-row">
+        <div class="grow nm">Empty departments</div>
+        <div class="num">{{ empty_departments|length }}</div>
+      </div>
+      {% for d in empty_departments %}
+      <div class="it-row"><div class="grow sm" style="padding-left:12px;">— {{ d.name }}</div>
+        <a class="sm" href="{% url 'tenders:it_department_detail' d.pk %}">assign →</a></div>
+      {% endfor %}
+      <div class="it-row">
+        <div class="grow nm">Departments without a head</div>
+        <div class="num">{{ headless_departments|length }}</div>
+      </div>
+      <div class="it-row">
+        <div class="grow nm">Users with no department</div>
+        <div class="num">{{ unassigned_users }}</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="sec-head"><h2>Backup Status</h2><a class="lk" href="{% url 'tenders:it_backups' %}">Backup &amp; Restore →</a></div>
+<div class="it-cols">
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'backup' %}Last Successful Backup</span></div>
+    <div class="card-pad">
+      {% if last_backup %}
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:6px;">{{ last_backup.filename }}</div>
+      <div class="sm" style="color:var(--muted);font-size:.8rem;line-height:1.8;">
+        {{ last_backup.created_at|date:"d M Y, H:i" }} · {{ last_backup.size_display }}<br>
+        Contains: {{ last_backup.contents_display }}<br>
+        Created by: {{ last_backup.created_by.username|default:"system" }} ({{ last_backup.get_trigger_display }})
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;">
+        <a href="{% url 'tenders:it_backup_download' last_backup.pk %}" class="btn btn-ghost btn-sm"
+           data-save-as data-filename="{{ last_backup.filename }}">{% icon 'download' %}Download</a>
+        <a href="{% url 'tenders:it_backup_restore' last_backup.pk %}" class="btn btn-outline btn-sm">{% icon 'refresh' %}Restore</a>
+      </div>
+      {% else %}
+      <div class="it-empty" style="padding:12px 0;">
+        No backup has ever been taken.
+        <form method="post" action="{% url 'tenders:it_backup_create' %}" style="margin-top:12px;">
+          {% csrf_token %}
+          <input type="hidden" name="include_database" value="on">
+          <input type="hidden" name="include_media"    value="on">
+          <input type="hidden" name="include_config"   value="on">
+          <button type="submit" class="btn btn-gold btn-sm">{% icon 'arrow-left' %}Create the first backup</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'restore' %}Restore History</span></div>
+    <div class="it-list">
+      {% for r in restore_history %}
+      <div class="it-row">
+        <div class="grow">
+          <div class="nm">{{ r.backup.filename }}</div>
+          <div class="sm">by {{ r.restored_by.username|default:"system" }} · {{ r.restored_at|date:"d M Y, H:i" }}</div>
+        </div>
+        {% if r.status == 'SUCCESS' %}<span class="state-pill on">OK</span>
+        {% else %}<span class="state-pill err">Failed</span>{% endif %}
+      </div>
+      {% empty %}<div class="it-empty">Nothing has been restored.</div>{% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<div class="sec-head"><h2>Recent Administrative Activity</h2><a class="lk" href="{% url 'tenders:it_logs' %}">System logs →</a></div>
+<div class="card">
+  <div class="it-list">
+    {% for a in recent_actions %}
+    <div class="it-row">
+      <div class="grow">
+        <div class="nm">{{ a.get_action_display }}{% if a.target %} — {{ a.target }}{% endif %}</div>
+        <div class="sm">{{ a.actor.username|default:"system" }}{% if a.detail %} · {{ a.detail|truncatechars:70 }}{% endif %}</div>
+      </div>
+      <div class="sm">{{ a.created_at|timesince }} ago</div>
+    </div>
+    {% empty %}<div class="it-empty">No administrative actions recorded yet.</div>{% endfor %}
+  </div>
+</div>
+
+<script>
+// The documentation menu opens on hover via CSS. This adds click, so it is
+// usable with a touch screen and from the keyboard, where hover does not exist.
+(function(){
+  const menu = document.querySelector('.doc-menu');
+  if(!menu) return;
+  const button = menu.querySelector('button');
+
+  button.addEventListener('click', function(ev){
+    ev.stopPropagation();
+    const open = menu.classList.toggle('open');
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  // picking an item closes it, otherwise the panel hangs around over the page
+  menu.querySelectorAll('.doc-menu-panel a').forEach(a =>
+    a.addEventListener('click', () => menu.classList.remove('open')));
+  document.addEventListener('click', function(ev){
+    if(!menu.contains(ev.target)) menu.classList.remove('open');
+  });
+  document.addEventListener('keydown', function(ev){
+    if(ev.key === 'Escape'){
+      menu.classList.remove('open');
+      button.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
+</script>
+{% endblock %}

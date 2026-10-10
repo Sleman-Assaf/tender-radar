@@ -1,0 +1,81 @@
+{# templates/manage/country_list.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Countries — Manage{% endblock %}
+{% block page_title %} Countries — الدول{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_hub' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Management Hub</a>
+<a href="{% url 'tenders:manage_country_add' %}" class="btn btn-gold btn-sm">{% icon 'plus' %}+ Add Country</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'globe' %}Countries Registry — {{ countries|length }} countries</span>
+    <span style="font-size:.78rem;color:var(--grey-5);">Changes take effect on next scrape run</span>
+  </div>
+  <div class="card-body">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Flag</th><th>Code</th><th>English Name</th><th>Arabic Name</th>
+          <th>Currency</th><th>Sources</th><th>Tenders</th><th>Order</th><th>Active</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in countries %}
+        <tr>
+          <td style="text-align:center;">{% country_flag c %}</td>
+          <td><code style="color:var(--gold);font-weight:700;">{{ c.code }}</code></td>
+          <td style="font-weight:500;color:var(--ink);">{{ c.name_en }}</td>
+          <td style="font-family:var(--font-ar),sans-serif;direction:rtl;text-align:right;color:var(--grey-6);">{{ c.name_ar }}</td>
+          <td><span class="badge badge-country">{{ c.currency|default:"—" }}</span></td>
+          <td style="color:var(--gold);font-weight:600;">{{ c.source_count }}</td>
+          <td style="color:var(--grey-6);">{{ c.tender_count }}</td>
+          <td style="color:var(--grey-5);">{{ c.sort_order }}</td>
+          <td>
+            <button onclick="toggleActive('country', '{{ c.code }}', this)"
+              class="badge {% if c.is_active %}badge-open{% else %}badge-closed{% endif %}"
+              style="cursor:pointer;border:none;background:none;padding:3px 10px;">
+              {% if c.is_active %}● Active{% else %}○ Off{% endif %}
+            </button>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px;">
+              <a href="{% url 'tenders:manage_country_edit' c.code %}" class="btn btn-outline btn-sm">{% icon 'edit' %}Edit</a>
+              {% if c.source_count == 0 %}
+              <form method="post" action="{% url 'tenders:manage_country_delete' c.code %}" onsubmit="return confirm('Delete {{ c.name_en }}?')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' %}Delete</button>
+              </form>
+              {% else %}
+              <span class="btn btn-ghost btn-sm" style="opacity:.4;cursor:not-allowed;" title="Has sources — cannot delete">{% icon 'trash' %}Delete</span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--grey-5);">No countries yet. <a href="{% url 'tenders:manage_country_add' %}">Add one →</a></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleActive(type, id, btn) {
+  const urls = { country: `/manage/countries/${id}/toggle/` };
+  fetch(urls[type], { method:'POST', headers:{'X-CSRFToken': getCsrf()} })
+    .then(r => r.json())
+    .then(data => {
+      btn.className = `badge ${data.active ? 'badge-open' : 'badge-closed'}`;
+      btn.style = 'cursor:pointer;border:none;background:none;padding:3px 10px;';
+      btn.textContent = data.active ? '● Active' : '○ Off';
+      showToast(data.active ? 'Activated' : 'Deactivated', 'success');
+    });
+}
+</script>
+{% endblock %}

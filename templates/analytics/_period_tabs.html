@@ -1,0 +1,12 @@
+{# templates/analytics/_period_tabs.html #}
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <a href="{% url 'tenders:analytics_hub' %}" style="font-size:.8rem;color:var(--grey-5);">← Analytics</a>
+  <span style="color:var(--grey-3);">|</span>
+  <span style="font-size:.8rem;color:var(--grey-4);">Period:</span>
+  {% for d in "7,14,30,60,90"|make_list %}{% endfor %}
+  <a href="?days=7"  style="padding:3px 10px;font-size:.8rem;border:var(--border);{% if days == 7 %}background:var(--yellow);font-weight:700;{% endif %}">7d</a>
+  <a href="?days=14" style="padding:3px 10px;font-size:.8rem;border:var(--border);{% if days == 14 %}background:var(--yellow);font-weight:700;{% endif %}">14d</a>
+  <a href="?days=30" style="padding:3px 10px;font-size:.8rem;border:var(--border);{% if days == 30 %}background:var(--yellow);font-weight:700;{% endif %}">30d</a>
+  <a href="?days=60" style="padding:3px 10px;font-size:.8rem;border:var(--border);{% if days == 60 %}background:var(--yellow);font-weight:700;{% endif %}">60d</a>
+  <a href="?days=90" style="padding:3px 10px;font-size:.8rem;border:var(--border);{% if days == 90 %}background:var(--yellow);font-weight:700;{% endif %}">90d</a>
+</div>

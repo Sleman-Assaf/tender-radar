@@ -1,0 +1,25 @@
+{# templates/tenders/_ticker_card.html #}
+{% load tender_extras %}
+<a href="{% url 'tenders:detail' t.pk %}"
+   style="display:inline-flex;flex-direction:column;justify-content:center;
+          min-width:270px;max-width:330px;height:58px;
+          padding:0 18px;
+          background:var(--paper-2);
+          border-right:1px solid var(--line);
+          text-decoration:none;color:inherit;transition:background .15s;"
+   onmouseover="this.style.background='var(--paper)'"
+   onmouseout="this.style.background='var(--paper-2)'">
+
+  <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">
+    {% country_flag t.country 'sm' %}
+    <span class="pill info" style="padding:1px 6px;font-size:.6rem;">AEC</span>
+    <span style="font-size:.68rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;">
+      {{ t.source.name|default:"" }}
+    </span>
+  </div>
+
+  <div class="ar" style="font-size:.8rem;color:var(--ink);font-weight:600;
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:294px;text-align:right;">
+    {{ t.title_ar|default:t.title|truncatechars:55 }}
+  </div>
+</a>

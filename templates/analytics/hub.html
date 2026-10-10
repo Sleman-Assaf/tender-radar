@@ -1,0 +1,85 @@
+{# templates/analytics/hub.html #}
+{% extends "base.html" %}
+{% block title %}Analytics — TenderRadar{% endblock %}
+{% block page_title %}Analytics Dashboard{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='analytics' %}{% include "it/_nav.html" %}{% endwith %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+  <p style="color:var(--grey-5);font-size:.9rem;margin:0;">
+    Activity overview for the last <strong>{{ days }}</strong> days.
+  </p>
+  <div style="display:flex;gap:6px;">
+    {% for d in "7,14,30,60,90"|make_list %}{% endfor %}
+    <a href="?days=7"  style="padding:4px 12px;font-size:.8rem;border:var(--border);{% if days == 7 %}background:var(--yellow);font-weight:700;{% endif %}">7d</a>
+    <a href="?days=14" style="padding:4px 12px;font-size:.8rem;border:var(--border);{% if days == 14 %}background:var(--yellow);font-weight:700;{% endif %}">14d</a>
+    <a href="?days=30" style="padding:4px 12px;font-size:.8rem;border:var(--border);{% if days == 30 %}background:var(--yellow);font-weight:700;{% endif %}">30d</a>
+    <a href="?days=60" style="padding:4px 12px;font-size:.8rem;border:var(--border);{% if days == 60 %}background:var(--yellow);font-weight:700;{% endif %}">60d</a>
+    <a href="?days=90" style="padding:4px 12px;font-size:.8rem;border:var(--border);{% if days == 90 %}background:var(--yellow);font-weight:700;{% endif %}">90d</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;">
+  {% include "analytics/_kpi.html" with label="Total Users" value=users_total icon="" color="var(--blue)" %}
+  {% include "analytics/_kpi.html" with label="Active Users" value=active_users icon="" color="var(--green)" %}
+  {% include "analytics/_kpi.html" with label="Logins" value=logins_period icon="" color="var(--yellow)" %}
+  {% include "analytics/_kpi.html" with label="Tender Views" value=views_period icon="" color="var(--blue)" %}
+  {% include "analytics/_kpi.html" with label="Portal Clicks" value=clicks_period icon="" color="var(--orange)" %}
+  {% include "analytics/_kpi.html" with label="Open Tenders" value=open_tenders icon="" color="var(--green)" %}
+  {% include "analytics/_kpi.html" with label="AEC Relevant" value=aec_tenders icon="" color="var(--yellow)" %}
+  {% include "analytics/_kpi.html" with label="Feedback" value=feedbacks icon="" color="var(--grey-5)" %}
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+
+  <a href="{% url 'tenders:analytics_logins' %}?days={{ days }}" style="text-decoration:none;">
+    <div style="background:var(--white);border:var(--border);padding:24px;cursor:pointer;" onmouseover="this.style.borderColor='var(--yellow)'" onmouseout="this.style.borderColor='var(--grey-2)'">
+      <div style="font-size:1.8rem;margin-bottom:10px;"></div>
+      <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">Login Activity</div>
+      <div style="color:var(--grey-5);font-size:.85rem;">Who is logging in, when, and how often. Daily trends & user comparison bar chart.</div>
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:analytics_user_activity' %}?days={{ days }}" style="text-decoration:none;">
+    <div style="background:var(--white);border:var(--border);padding:24px;cursor:pointer;" onmouseover="this.style.borderColor='var(--yellow)'" onmouseout="this.style.borderColor='var(--grey-2)'">
+      <div style="font-size:1.8rem;margin-bottom:10px;"></div>
+      <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">User Interactivity</div>
+      <div style="color:var(--grey-5);font-size:.85rem;">Per-user line charts for views & clicks. Side-by-side user engagement comparison.</div>
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:analytics_open_tenders' %}?days={{ days }}" style="text-decoration:none;">
+    <div style="background:var(--white);border:var(--border);padding:24px;cursor:pointer;" onmouseover="this.style.borderColor='var(--yellow)'" onmouseout="this.style.borderColor='var(--grey-2)'">
+      <div style="font-size:1.8rem;margin-bottom:10px;"></div>
+      <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">Open Tenders</div>
+      <div style="color:var(--grey-5);font-size:.85rem;">New tenders by country & source, AEC relevance breakdown, and most-viewed tenders.</div>
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:analytics_portal_clicks' %}?days={{ days }}" style="text-decoration:none;">
+    <div style="background:var(--white);border:var(--border);padding:24px;cursor:pointer;" onmouseover="this.style.borderColor='var(--yellow)'" onmouseout="this.style.borderColor='var(--grey-2)'">
+      <div style="font-size:1.8rem;margin-bottom:10px;"></div>
+      <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">Portal Clicks</div>
+      <div style="color:var(--grey-5);font-size:.85rem;">Who clicked "Open in Portal" and which tenders attracted the most external visits.</div>
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:analytics_evaluation' %}?days={{ days }}" style="text-decoration:none;">
+    <div style="background:var(--white);border:var(--border);padding:24px;cursor:pointer;" onmouseover="this.style.borderColor='var(--yellow)'" onmouseout="this.style.borderColor='var(--grey-2)'">
+      <div style="font-size:1.8rem;margin-bottom:10px;"></div>
+      <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">AEC Evaluation</div>
+      <div style="color:var(--grey-5);font-size:.85rem;">Pursue / Skip / Monitor decisions, evaluator activity, and daily evaluation trends.</div>
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:analytics_scraper_health' %}?days={{ days }}" style="text-decoration:none;">
+    <div style="background:var(--white);border:var(--border);padding:24px;cursor:pointer;" onmouseover="this.style.borderColor='var(--yellow)'" onmouseout="this.style.borderColor='var(--grey-2)'">
+      <div style="font-size:1.8rem;margin-bottom:10px;"></div>
+      <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">Scraper Health</div>
+      <div style="color:var(--grey-5);font-size:.85rem;">Success / failure rates per scraper source, run history, and daily scrape volume.</div>
+    </div>
+  </a>
+
+</div>
+{% endblock %}

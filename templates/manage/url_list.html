@@ -1,0 +1,102 @@
+{# templates/manage/url_list.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}URLs — {{ source.name }}{% endblock %}
+{% block page_title %} Tendering URLs — {{ source.name }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_sources' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Sources</a>
+<a href="{% url 'tenders:manage_url_add' source.pk %}" class="btn btn-gold btn-sm">{% icon 'plus' %}+ Add URL</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="card mb-4" style="padding:16px 20px;">
+  <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+    <div>
+      <div style="font-size:.68rem;color:var(--grey-5);text-transform:uppercase;letter-spacing:.1em;">Source</div>
+      <div style="font-weight:600;color:var(--ink);">{{ source.name }}</div>
+    </div>
+    <div>
+      <div style="font-size:.68rem;color:var(--grey-5);text-transform:uppercase;letter-spacing:.1em;">Country</div>
+      <div>{% country_flag source.country %} {{ source.country.name_en }}</div>
+    </div>
+    <div>
+      <div style="font-size:.68rem;color:var(--grey-5);text-transform:uppercase;letter-spacing:.1em;">Scraper</div>
+      <code style="color:var(--orange);font-size:.8rem;">{{ source.scraper_class }}</code>
+    </div>
+    <div style="flex:1;text-align:right;">
+      <a href="{% url 'tenders:manage_source_edit' source.pk %}" class="btn btn-ghost btn-sm">{% icon 'edit' %}Edit Source</a>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{{ urls|length }} Tendering URL{{ urls|length|pluralize }}</span>
+    <span style="font-size:.78rem;color:var(--grey-5);">Scraper iterates all active URLs in order</span>
+  </div>
+  <div class="card-body">
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>Label</th><th>URL</th><th>Pagination</th><th>Max Pages</th><th>Active</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for u in urls %}
+        <tr>
+          <td style="color:var(--grey-5);font-size:.8rem;">{{ u.sort_order }}</td>
+          <td>
+            <div style="font-weight:500;color:var(--ink);">{{ u.label }}</div>
+            {% if u.label_ar %}<div style="font-size:.75rem;color:var(--grey-5);font-family:var(--font-ar),sans-serif;direction:rtl;">{{ u.label_ar }}</div>{% endif %}
+            {% if u.notes %}<div style="font-size:.72rem;color:var(--grey-5);margin-top:2px;"> {{ u.notes|truncatechars:60 }}</div>{% endif %}
+          </td>
+          <td style="max-width:280px;">
+            <a href="{{ u.url }}" target="_blank" style="font-size:.78rem;color:var(--gold);word-break:break-all;">
+              {{ u.url|truncatechars:60 }}
+            </a>
+          </td>
+          <td>
+            <span class="badge badge-cat">{{ u.get_pagination_style_display }}</span>
+            <div style="font-size:.7rem;color:var(--grey-5);margin-top:2px;">param: <code>{{ u.page_param }}</code></div>
+          </td>
+          <td style="color:var(--gold);font-weight:600;">{{ u.max_pages }}</td>
+          <td>
+            <button onclick="toggleURL({{ u.pk }}, this)"
+              class="badge {% if u.is_active %}badge-open{% else %}badge-closed{% endif %}"
+              style="cursor:pointer;border:none;background:none;padding:3px 10px;">
+              {% if u.is_active %}● Active{% else %}○ Off{% endif %}
+            </button>
+          </td>
+          <td>
+            <div style="display:flex;gap:5px;">
+              <a href="{% url 'tenders:manage_url_edit' u.pk %}" class="btn btn-ghost btn-sm">{% icon 'edit' %}Edit</a>
+              <form method="post" action="{% url 'tenders:manage_url_delete' u.pk %}" onsubmit="return confirm('Delete this URL?')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">{% icon 'x' %}</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--grey-5);">
+          No URLs yet. <a href="{% url 'tenders:manage_url_add' source.pk %}">Add the first URL →</a>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleURL(pk, btn) {
+  fetch(`/manage/urls/${pk}/toggle/`, { method:'POST', headers:{'X-CSRFToken':getCsrf()} })
+    .then(r=>r.json()).then(data=>{
+      btn.className=`badge ${data.active?'badge-open':'badge-closed'}`;
+      btn.style='cursor:pointer;border:none;background:none;padding:3px 10px;';
+      btn.textContent=data.active?'● Active':'○ Off';
+    });
+}
+</script>
+{% endblock %}

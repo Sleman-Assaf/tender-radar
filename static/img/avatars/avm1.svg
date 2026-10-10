@@ -1,0 +1,9 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Site engineer avatar">
+  <rect width="100" height="100" fill="#FCD700"/>
+  <circle cx="50" cy="55" r="34" fill="#0F0F0D" opacity=".06"/>
+  <path d="M16 100 C16 74 31 64 50 64 C69 64 84 74 84 100 Z" fill="#0F0F0D"/>
+  <circle cx="50" cy="43" r="15" fill="#0F0F0D"/>
+  <path d="M31 37 Q50 15 69 37 Z" fill="#FFFFFF"/>
+  <rect x="29" y="34.5" width="42" height="4.6" rx="2.3" fill="#FFFFFF"/>
+  <rect x="47.5" y="19" width="5" height="18" rx="2" fill="#0F0F0D" opacity=".12"/>
+</svg>

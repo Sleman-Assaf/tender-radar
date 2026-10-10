@@ -1,0 +1,134 @@
+{# templates/manage/source_list.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Scraper Sources — Manage{% endblock %}
+{% block page_title %} Scraper Sources{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_hub' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Hub</a>
+<a href="{% url 'tenders:manage_source_add' %}" class="btn btn-gold btn-sm">{% icon 'plus' %}+ Add Source</a>
+<form method="post" action="{% url 'tenders:manage_flush_today' %}" style="display:inline;"
+      onsubmit="return confirm('Delete ALL tenders scraped today? This cannot be undone.');">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-sm"
+          style="background:#e74c3c;color:#fff;border:none;cursor:pointer;">
+     {% icon 'trash' %}Flush Today's Tenders
+  </button>
+</form>
+{% endblock %}
+
+{% block content %}
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+  <a href="{% url 'tenders:manage_sources' %}" class="btn {% if not country_filter %}btn-gold{% else %}btn-ghost{% endif %} btn-sm">{% icon 'list' %}All</a>
+  {% for c in countries %}
+  <a href="{% url 'tenders:manage_sources' %}?country={{ c.code }}"
+     class="btn {% if country_filter == c.code %}btn-gold{% else %}btn-ghost{% endif %} btn-sm">
+    {% country_flag c %} {{ c.name_en }}
+  </a>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Source Name</th><th>Country</th><th>Scraper Class</th>
+          <th>URLs</th><th>Tenders</th><th>Last Run</th><th>Active</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sources %}
+        <tr>
+          <td>
+            <div style="font-weight:600;color:var(--ink);">{{ s.name }}</div>
+            {% if s.name_ar %}<div style="font-size:.78rem;color:var(--grey-5);font-family:var(--font-ar),sans-serif;direction:rtl;text-align:right;">{{ s.name_ar }}</div>{% endif %}
+            <a href="{{ s.base_url }}" target="_blank" style="font-size:.72rem;color:var(--gold);"> {{ s.base_url|truncatechars:45 }}</a>
+          </td>
+          <td>
+            <span class="badge badge-country">{% country_flag s.country %} {{ s.country.name_en }}</span>
+          </td>
+          <td>
+            <code style="font-size:.75rem;color:var(--orange);background:rgba(224,140,64,.1);padding:2px 7px;border-radius:4px;">
+              {{ s.scraper_class }}
+            </code>
+          </td>
+          <td>
+            <a href="{% url 'tenders:manage_source_urls' s.pk %}"
+               style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;color:var(--gold);">
+               {{ s.url_count }}
+            </a>
+          </td>
+          <td style="color:var(--grey-6);">{{ s.tender_count }}</td>
+          <td style="font-size:.78rem;color:var(--grey-5);">
+            {% if s.last_scraped_at %}{{ s.last_scraped_at|timesince }} ago{% else %}Never{% endif %}
+          </td>
+          <td>
+            <button onclick="toggleSource({{ s.pk }}, this)"
+              class="badge {% if s.is_active %}badge-open{% else %}badge-closed{% endif %}"
+              style="cursor:pointer;border:none;background:none;padding:3px 10px;">
+              {% if s.is_active %}● Active{% else %}○ Off{% endif %}
+            </button>
+          </td>
+          <td>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;">
+              <a href="{% url 'tenders:manage_source_urls' s.pk %}" class="btn btn-outline btn-sm"> {% icon 'link' %}URLs</a>
+              <a href="{% url 'tenders:manage_source_edit' s.pk %}" class="btn btn-ghost btn-sm">{% icon 'edit' %}Edit</a>
+              <button onclick="flushSource({{ s.pk }}, '{{ s.name|escapejs }}', {{ s.tender_count }}, this)"
+                class="btn btn-sm"
+                style="background:rgba(255,160,0,.12);color:#ffa000;border:1px solid rgba(255,160,0,.3);"
+                title="Delete all tenders from this source">
+                 {% icon 'trash' %}Flush
+              </button>
+              <form method="post" action="{% url 'tenders:manage_source_delete' s.pk %}" onsubmit="return confirm('Delete {{ s.name }}?')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">{% icon 'x' %}</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--grey-5);">
+          No sources yet. <a href="{% url 'tenders:manage_source_add' %}">Add one →</a>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSource(pk, btn) {
+  fetch(`/manage/sources/${pk}/toggle/`, { method:'POST', headers:{'X-CSRFToken':getCsrf()} })
+    .then(r=>r.json()).then(data=>{
+      btn.className=`badge ${data.active?'badge-open':'badge-closed'}`;
+      btn.style='cursor:pointer;border:none;background:none;padding:3px 10px;';
+      btn.textContent=data.active?'● Active':'○ Off';
+      showToast(data.active?'Activated':'Deactivated','success');
+    });
+}
+
+function flushSource(pk, name, count, btn) {
+  if (!confirm(`Delete all ${count} tenders from "${name}"?\nThis cannot be undone.`)) return;
+  btn.disabled = true;
+  btn.textContent = ' Flushing…';
+  fetch(`/manage/sources/${pk}/flush/`, { method:'POST', headers:{'X-CSRFToken':getCsrf()} })
+    .then(r=>r.json()).then(data=>{
+      showToast(` Deleted ${data.deleted} tenders from "${data.name}"`, 'success');
+      // Update tender count cell
+      const row = btn.closest('tr');
+      const countCell = row.querySelector('td:nth-child(5)');
+      if (countCell) countCell.textContent = '0';
+      btn.textContent = ' Flush';
+      btn.disabled = false;
+    }).catch(()=>{
+      showToast('Flush failed', 'error');
+      btn.textContent = ' Flush';
+      btn.disabled = false;
+    });
+}
+</script>
+{% endblock %}

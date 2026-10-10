@@ -1,0 +1,17 @@
+{% load tender_extras %}{% comment %}
+The actions for a whole-card link - the featured lead and the Latest rail.
+
+They live OUTSIDE the anchor because a <button> nested inside an <a> is
+invalid HTML and the anchor swallows the click, so the card carried no
+actions at all. On page one that is the lead plus four rail items: a fifth
+of the page with no way to bookmark from the list.
+
+Deliberately narrower than the grid card's set. A lead is read, saved, or
+opened at the publisher; deleting or voting on it belongs on the card below
+or on the article itself, where there is room to label what the button does.
+{% endcomment %}<div class="nf-strip-acts">
+  <button type="button" onclick="toggleBookmark({{ t.pk }}, this)"
+          class="nf-act {% if t.is_bookmarked %}on-book{% endif %}"
+          title="{% if t.is_bookmarked %}Remove bookmark{% else %}Bookmark{% endif %}"
+          aria-label="{% if t.is_bookmarked %}Remove bookmark{% else %}Bookmark{% endif %}">{% icon 'bookmark' 14 %}</button>
+</div>

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Batch #{{ batch.pk }} — Bulk CV Import — TenderRadar{% endblock %}
+{% block page_title %}CV Import Batch #{{ batch.pk }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'bd:cv_bulk_upload' %}" class="btn btn-ghost btn-sm">{% icon 'upload' %}Bulk Upload</a>
+<a href="{% url 'bd:cv_list' %}?review=1" class="btn btn-outline btn-sm">{% icon 'alert' %}Needs Review</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:16px;">
+  <div style="padding:18px 22px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:.84rem;color:#777;">
+        {{ batch.created_at|date:"d M Y, H:i" }} by {{ batch.created_by.username|default:"—" }}
+      </div>
+      <span id="batchStatus" style="font-size:.72rem;font-weight:800;padding:3px 12px;border-radius:12px;background:#f5f5f5;color:#888;border:1px solid #e5e5e5;">…</span>
+    </div>
+    <div style="background:#f0f0f0;border-radius:8px;height:18px;overflow:hidden;">
+      <div id="progressBar" style="height:100%;width:0%;background:var(--yellow);transition:width .5s;"></div>
+    </div>
+    <div id="progressText" style="font-size:.78rem;color:#888;margin-top:6px;">Loading…</div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <form method="post" action="{% url 'bd:cv_batch_retry' batch.pk %}" id="retryForm" style="display:none;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline btn-sm">{% icon 'refresh' %}Retry Failed Items</button>
+      </form>
+      <form method="post" action="{% url 'bd:cv_batch_cancel' batch.pk %}" id="cancelForm" style="display:none;"
+            onsubmit="return confirm('Stop this batch? The CV currently being analysed will finish; all remaining pending CVs will be skipped.')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm" style="background:#fffef0;color:#b8860b;border:1px solid #ffe88a;">{% icon 'stop' %}Cancel Batch</button>
+      </form>
+      <form method="post" action="{% url 'bd:cv_batch_delete' batch.pk %}" id="deleteForm"
+            onsubmit="return confirm('Delete this batch and its uploaded files? Engineers already imported are kept. A running batch will be stopped first.')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' %}Delete Batch</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">{% icon 'folder' %}Files</span></div>
+  <div id="itemsWrap" style="padding:0;"></div>
+</div>
+
+<script>
+const STATUS_URL = "{% url 'bd:cv_batch_status' batch.pk %}";
+const CV_URL_TPL = "{% url 'bd:cv_detail' 0 %}";
+
+const PILL = {
+  PENDING:    'background:#f5f5f5;color:#888;border:1px solid #e5e5e5;',
+  PROCESSING: 'background:#fffef0;color:#b8860b;border:1px solid #ffe88a;',
+  DONE:       'background:#e8fdf0;color:#1a8840;border:1px solid #b8edc8;',
+  FAILED:     'background:#fdecea;color:#c0392b;border:1px solid #f5c6c0;',
+  QUEUED:     'background:#f5f5f5;color:#888;border:1px solid #e5e5e5;',
+  CANCELLED:  'background:#f0f0f0;color:#666;border:1px solid #ddd;',
+};
+const LABEL = {PENDING:'Pending', PROCESSING:'Analysing…', DONE:'Done',
+               FAILED:'Failed', QUEUED:'Queued', CANCELLED:'Cancelled'};
+
+let timer = null;
+
+async function poll(){
+  try {
+    const r = await fetch(STATUS_URL);
+    const d = await r.json();
+
+    const st = document.getElementById('batchStatus');
+    st.textContent = LABEL[d.status] || d.status;
+    st.style.cssText += PILL[d.status] || '';
+
+    document.getElementById('progressBar').style.width = d.progress + '%';
+    document.getElementById('progressText').textContent =
+      `${d.counts.done + d.counts.failed} / ${d.counts.total} processed — ` +
+      `${d.counts.done} done · ${d.counts.failed} failed` +
+      (d.counts.cancelled ? ` · ${d.counts.cancelled} cancelled` : '') +
+      ` · ${d.counts.pending + d.counts.processing} remaining`;
+
+    const finished = ['DONE','FAILED','CANCELLED'].includes(d.status);
+    document.getElementById('retryForm').style.display =
+      (d.counts.failed && finished) ? 'block' : 'none';
+    document.getElementById('cancelForm').style.display = finished ? 'none' : 'block';
+
+    const wrap = document.getElementById('itemsWrap');
+    wrap.innerHTML = d.items.map(i => {
+      let right = `<span style="font-size:.68rem;font-weight:700;padding:2px 10px;border-radius:10px;${PILL[i.status]||''}">${LABEL[i.status]||i.status}</span>`;
+      let sub = '';
+      if (i.status === 'DONE' && i.engineer) {
+        const url = CV_URL_TPL.replace('/0/', '/' + i.engineer + '/');
+        sub = `<div style="font-size:.72rem;color:#1a8840;">→ <a href="${url}" style="color:#1a8840;font-weight:600;">${i.engineer_name}</a>${i.was_update ? ' (updated existing)' : ' (new)'}</div>`;
+      } else if (i.status === 'FAILED' && i.error) {
+        sub = `<div style="font-size:.72rem;color:#c0392b;">${i.error}</div>`;
+      }
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 18px;border-bottom:1px solid #f5f5f5;">
+        <div><div style="font-size:.84rem;font-weight:600;">${i.name}</div>${sub}</div>${right}</div>`;
+    }).join('') || '<div style="padding:30px;text-align:center;color:#aaa;">No items.</div>';
+
+    if (finished) {
+      clearInterval(timer);
+      timer = null;
+    }
+  } catch(e){ /* transient — keep polling */ }
+}
+
+poll();
+timer = setInterval(poll, 3000);
+</script>
+{% endblock %}

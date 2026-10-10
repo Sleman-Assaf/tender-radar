@@ -1,0 +1,392 @@
+{# templates/it/backups.html — Backup & Restore #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Backup &amp; Restore — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · Backup &amp; Restore{% endblock %}
+{% block page_title %}Backup &amp; Restore{% endblock %}
+{% block page_subtitle %}<p>Full-system archives: database, uploaded files, configuration, application code and documentation.</p>{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='backups' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-stats">
+  <div class="it-stat {% if not last_success %}bad{% endif %}">
+    <div class="lbl">Last Successful Backup</div>
+    <div class="val" style="font-size:1.25rem;padding-top:10px;">
+      {% if last_success %}{{ last_success.created_at|date:"d M Y, H:i" }}{% else %}Never{% endif %}
+    </div>
+    <div class="sub">{% if last_success %}{{ last_success.size_display }} · {{ last_success.contents_display }}{% else %}Create one below{% endif %}</div>
+  </div>
+  <div class="it-stat">
+    <div class="lbl">Archives</div><div class="val">{{ backup_count }}</div>
+    <div class="sub">{{ disk.bytes|filesizeformat }} on disk</div>
+  </div>
+  <div class="it-stat {% if schedule.enabled %}ok{% endif %}">
+    <div class="lbl">Next Scheduled</div>
+    <div class="val" style="font-size:1.25rem;padding-top:10px;">
+      {% if next_run_at %}{{ next_run_at|date:"d M, H:i" }}{% else %}Off{% endif %}
+    </div>
+    <div class="sub">{% if schedule.enabled %}{{ schedule.get_frequency_display }} · keep last {{ schedule.retention_count }}{% else %}Automatic backups disabled{% endif %}</div>
+  </div>
+  <div class="it-stat">
+    <div class="lbl">Restores</div><div class="val">{{ restores|length }}</div>
+    <div class="sub">recent restore operations</div>
+  </div>
+</div>
+
+<p style="font-size:.78rem;color:var(--muted);margin:-6px 0 18px;line-height:1.7;">
+  Every archive — manual and scheduled alike — is written straight to
+  <code style="font-size:.76rem;background:rgba(0,0,0,.05);padding:2px 6px;border-radius:4px;
+               user-select:all;word-break:break-all;">{{ backup_dir }}</code>
+  on the machine running TenderRadar, and the oldest are deleted once there are
+  more than {% if schedule.retention_count %}{{ schedule.retention_count }}{% else %}the configured number of{% endif %}.
+  <strong>Download</strong> is only for taking an extra copy away with you: it saves
+  wherever your browser puts downloads, which the site cannot choose for you.
+</p>
+
+<div class="it-cols">
+
+  {# ── Create ──────────────────────────────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'backup' %}Create a Backup</span></div>
+    <div class="card-pad">
+      <form method="post" action="{% url 'tenders:it_backup_create' %}" data-keep-scroll>
+        {% csrf_token %}
+        <div class="field">
+          <label>Include</label>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:.85rem;">
+            <label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+              <input type="checkbox" name="include_database" checked style="accent-color:var(--yellow);"> Database</label>
+            <label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+              <input type="checkbox" name="include_media" checked style="accent-color:var(--yellow);"> Uploaded files</label>
+            <label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+              <input type="checkbox" name="include_config" checked style="accent-color:var(--yellow);"> System configuration</label>
+            <label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+              <input type="checkbox" name="include_code" checked style="accent-color:var(--yellow);"> Application code</label>
+            <label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+              <input type="checkbox" name="include_docs" checked style="accent-color:var(--yellow);"> Documentation &amp; user guide</label>
+          </div>
+        </div>
+        <div class="field">
+          <label>Note (optional)</label>
+          <input type="text" name="note" class="form-control" placeholder='e.g. "before v2 deploy"' maxlength="255">
+        </div>
+        <button type="submit" class="btn btn-gold">{% icon 'save' %}Create Backup</button>
+        <p style="font-size:.76rem;color:var(--muted);margin-top:11px;line-height:1.6;">
+          The database is copied through SQLite's online-backup API, so it is safe
+          to run while the site is serving traffic. Large media folders may take a
+          minute.
+        </p>
+      </form>
+    </div>
+  </div>
+
+  {# ── Schedule ────────────────────────────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'backup' %}Automatic Backups</span>
+      {% if schedule.enabled %}<span class="state-pill on">On</span>{% else %}<span class="state-pill off">Off</span>{% endif %}
+    </div>
+    <div class="card-pad">
+      <form method="post" action="{% url 'tenders:it_backup_schedule' %}" data-keep-scroll
+            id="sched-form">
+        {% csrf_token %}
+
+        {# ── Master switch ── #}
+        <label class="sw-row" id="sw-row">
+          <span class="sw-text">
+            <span class="sw-title" id="sw-title">
+              {% if schedule.enabled %}Automatic backups are ON{% else %}Automatic backups are OFF{% endif %}
+            </span>
+            <span class="sw-sub" id="sw-sub">
+              {% if schedule.enabled %}TenderRadar backs itself up on the schedule below.{% else %}Switch this on, choose when below, then save.{% endif %}
+            </span>
+          </span>
+          {{ schedule_form.enabled }}
+          <span class="sw-track"><span class="sw-knob"></span></span>
+        </label>
+
+        {# ── How often — the choice everything else follows ── #}
+        <div class="field">
+          <label>How often</label>
+          <div class="freq-opts">
+            {% for val, label in schedule_form.fields.frequency.choices %}
+            <label class="freq-opt{% if schedule.frequency == val %} sel{% endif %}">
+              <input type="radio" name="frequency" value="{{ val }}"
+                     {% if schedule.frequency == val %}checked{% endif %}>
+              <span class="fo-t">{{ label }}</span>
+              <span class="fo-s">
+                {% if val == 'WEEKLY' %}One chosen day each week
+                {% elif val == 'MONTHLY' %}One chosen date each month
+                {% else %}Once every 24 hours{% endif %}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field only-for" data-for="WEEKLY"
+             {% if schedule.frequency != 'WEEKLY' %}hidden{% endif %}>
+          <label>Which day of the week</label>{{ schedule_form.weekday }}
+        </div>
+        <div class="field only-for" data-for="MONTHLY"
+             {% if schedule.frequency != 'MONTHLY' %}hidden{% endif %}>
+          <label>Which day of the month</label>{{ schedule_form.day_of_month }}
+          <div class="hint">1–28, so the date exists in every month.</div>
+        </div>
+
+        <div class="field">
+          <label>Time of day</label>{{ schedule_form.hour }}
+          <div class="hint">Server time (Asia/Amman).</div>
+        </div>
+
+        <div class="field">
+          <label>What to include</label>
+          <label class="chk">{{ schedule_form.includes_database }} Database</label>
+          <label class="chk">{{ schedule_form.includes_media }} Uploaded files</label>
+          <label class="chk">{{ schedule_form.includes_config }} System configuration</label>
+          <label class="chk">{{ schedule_form.includes_code }} Application code</label>
+          <label class="chk">{{ schedule_form.includes_docs }} Documentation &amp; user guide</label>
+        </div>
+
+        <div class="field">
+          <label>How many to keep</label>{{ schedule_form.retention_count }}
+          <div class="hint">Applies to manual backups too. 0 keeps everything. Pre-restore safety copies are never pruned.</div>
+        </div>
+
+        <p class="sched-sum" id="sched-sum">{{ schedule.describe }}</p>
+
+        <button type="submit" class="btn btn-ghost">{% icon 'save' %}Save Schedule</button>
+        <p style="font-size:.76rem;color:var(--muted);margin-top:11px;line-height:1.6;">
+          Runs through Celery Beat. Register the periodic task once with
+          <code>python manage.py setup_schedule</code>.
+        </p>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+{# ── Upload / import ───────────────────────────────────────────────────────── #}
+<div class="sec-head"><h2>Restore From an Uploaded File</h2></div>
+<div class="card" style="margin-bottom:26px;">
+  <div class="card-pad">
+    <form method="post" action="{% url 'tenders:it_backup_upload' %}" enctype="multipart/form-data"
+          style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+      {% csrf_token %}
+      <input type="file" name="archive" accept=".zip,application/zip" required
+             style="font-size:.82rem;font-family:var(--font);">
+      <button type="submit" class="btn btn-gold btn-sm">{% icon 'upload' %}Upload &amp; Validate</button>
+    </form>
+    <p style="font-size:.76rem;color:var(--muted);margin-top:11px;line-height:1.7;">
+      Upload a TenderRadar backup archive (.zip) — one downloaded from here, or created on
+      another TenderRadar install. Uploading changes <b>nothing</b>: the file is validated
+      (intact zip, TenderRadar manifest, no unsafe paths) and added to the history below as an
+      <b>Uploaded archive</b>. Restoring it is then the same explicit, confirmed step as for any
+      other backup — a safety copy of the current state is always taken first.
+    </p>
+  </div>
+</div>
+
+{# ── History ───────────────────────────────────────────────────────────────── #}
+<div class="sec-head"><h2>Backup History</h2></div>
+<div class="card">
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>Archive</th><th>Contents</th><th>Size</th><th>Created</th><th>By</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for b in backups %}
+        <tr>
+          <td>
+            <div style="font-weight:700;font-size:.82rem;">{{ b.version_label }}</div>
+            <div style="font-size:.72rem;color:var(--muted-2);font-variant-numeric:tabular-nums;word-break:break-all;">{{ b.filename }}</div>
+            {% if b.note %}<div style="font-size:.73rem;color:var(--muted);">{{ b.note }}</div>{% endif %}
+            {% if b.trigger != 'MANUAL' %}<div style="font-size:.7rem;color:var(--muted-2);">{{ b.get_trigger_display }}</div>{% endif %}
+          </td>
+          <td style="font-size:.78rem;color:var(--muted);">{{ b.contents_display }}</td>
+          <td style="font-variant-numeric:tabular-nums;">{{ b.size_display }}</td>
+          <td style="font-size:.78rem;">{{ b.created_at|date:"d M Y, H:i" }}</td>
+          <td style="font-size:.78rem;">{{ b.created_by.username|default:"system" }}</td>
+          <td>
+            {% if b.status == 'SUCCESS' %}
+              {% if b.exists_on_disk %}<span class="state-pill on">OK</span>
+              {% else %}<span class="state-pill warn" title="Row exists but the file is gone">Missing</span>{% endif %}
+            {% elif b.status == 'FAILED' %}<span class="state-pill err" title="{{ b.error_message }}">Failed</span>
+            {% else %}<span class="state-pill off">Running</span>{% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              {% if b.exists_on_disk %}
+              <a href="{% url 'tenders:it_backup_download' b.pk %}" class="btn btn-ghost btn-sm"
+                 data-save-as data-filename="{{ b.filename }}">{% icon 'download' %}Download</a>
+              {% if can_administer %}
+              <a href="{% url 'tenders:it_backup_restore' b.pk %}" class="btn btn-outline btn-sm">{% icon 'restore' %}Restore</a>
+              {% endif %}
+              {% endif %}
+              <form method="post" action="{% url 'tenders:it_backup_delete' b.pk %}" style="display:inline;" data-keep-scroll
+                    onsubmit="return confirm('Delete {{ b.filename }} from disk? This cannot be undone.')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' %}Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted);">
+          No backups yet — create the first one above.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+{# ── Restore history ───────────────────────────────────────────────────────── #}
+<div class="sec-head"><h2>Restore History</h2></div>
+<div class="card">
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>Restored Archive</th><th>Restored</th><th>By</th><th>Parts</th><th>Safety Copy</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for r in restores %}
+        <tr>
+          <td style="font-weight:600;font-size:.8rem;">{{ r.backup.filename }}</td>
+          <td style="font-size:.78rem;">{{ r.restored_at|date:"d M Y, H:i" }}</td>
+          <td style="font-size:.78rem;">{{ r.restored_by.username|default:"system" }}</td>
+          <td style="font-size:.76rem;color:var(--muted);">
+            {% if r.restored_database %}Database {% endif %}
+            {% if r.restored_media %}Files {% endif %}
+            {% if r.restored_config %}Config {% endif %}
+            {% if r.restored_code %}Code {% endif %}
+            {% if r.restored_docs %}Docs{% endif %}
+          </td>
+          <td style="font-size:.76rem;color:var(--muted);">{{ r.safety_backup.filename|default:"—" }}</td>
+          <td>{% if r.status == 'SUCCESS' %}<span class="state-pill on">OK</span>
+              {% else %}<span class="state-pill err" title="{{ r.error_message }}">Failed</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted);">Nothing has been restored.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  /* ── Automatic Backups: one decision at a time ─────────────────────────── */
+  .sw-row{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:15px 16px;margin:2px 0 20px;border:1px solid var(--line-2);
+    background:var(--paper-3);cursor:pointer;user-select:none;
+    transition:border-color .18s,background .18s}
+  .sw-row.on{border-color:var(--ok);background:var(--ok-bg)}
+  .sw-title{display:flex;align-items:center;gap:8px;font-size:.92rem;font-weight:700;color:var(--ink)}
+  .sw-title::before{content:'';width:8px;height:8px;border-radius:50%;flex:none;
+    background:var(--muted-2);transition:background .18s,box-shadow .18s}
+  .sw-row.on .sw-title::before{background:var(--ok);box-shadow:0 0 0 4px rgba(31,157,85,.18)}
+  .sw-sub{display:block;font-size:.78rem;color:var(--muted);margin-top:4px;max-width:44ch;line-height:1.5}
+  .sw-row input[type=checkbox]{position:absolute;opacity:0;width:0;height:0}
+  .sw-track{position:relative;width:56px;height:30px;border-radius:999px;flex:none;
+    background:#c9c8bd;transition:background .22s cubic-bezier(.4,.03,.2,1);
+    box-shadow:inset 0 1px 3px rgba(15,15,13,.18)}
+  .sw-knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+    background:#fff;transition:transform .22s cubic-bezier(.4,.03,.2,1);
+    box-shadow:0 2px 5px rgba(15,15,13,.28)}
+  .sw-row input:checked + .sw-track{background:var(--ok)}
+  .sw-row input:checked + .sw-track .sw-knob{transform:translateX(26px)}
+  .sw-row input:focus-visible + .sw-track{box-shadow:0 0 0 3px var(--paper),0 0 0 5px var(--ink)}
+
+  .freq-opts{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  @media(max-width:640px){.freq-opts{grid-template-columns:1fr}}
+  .freq-opt{display:block;padding:11px 12px;border:1px solid var(--line-2);
+    background:var(--paper-2);cursor:pointer;text-transform:none;letter-spacing:0;
+    font-weight:400;transition:border-color .15s,background .15s}
+  .freq-opt:hover{border-color:var(--ink)}
+  .freq-opt.sel{border-color:var(--ink);background:var(--paper-3);box-shadow:inset 0 0 0 1px var(--ink)}
+  .freq-opt input{position:absolute;opacity:0;width:0;height:0}
+  .fo-t{display:block;font-size:.84rem;font-weight:700;color:var(--ink)}
+  .fo-s{display:block;font-size:.72rem;color:var(--muted);margin-top:3px;line-height:1.45}
+
+  #sched-form .only-for[hidden]{display:none}
+  #sched-form .hint{font-size:.74rem;color:var(--muted);margin-top:5px;line-height:1.5}
+  #sched-form .chk{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;
+    font-size:.85rem;font-weight:500;color:var(--ink);text-transform:none;letter-spacing:0}
+  #sched-form .chk input{accent-color:var(--yellow)}
+
+  .sched-sum{font-size:.82rem;line-height:1.6;color:var(--muted);background:var(--paper-3);
+    border-left:3px solid var(--line-2);padding:11px 13px;margin:6px 0 16px}
+  .sched-sum.on{border-left-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+  @media(prefers-reduced-motion:reduce){.sw-row,.sw-track,.sw-knob{transition:none}}
+</style>
+
+<script>
+(function () {
+  var form = document.getElementById('sched-form');
+  if (!form) { return; }
+
+  var DAYS  = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  var on    = form.querySelector('input[name="enabled"]');
+  var row   = document.getElementById('sw-row');
+  var title = document.getElementById('sw-title');
+  var sub   = document.getElementById('sw-sub');
+  var sum   = document.getElementById('sched-sum');
+
+  function val(name) { var e = form.querySelector('[name="' + name + '"]'); return e ? e.value : ''; }
+  function on_(name) { var e = form.querySelector('[name="' + name + '"]'); return !!(e && e.checked); }
+  function freq()    { var r = form.querySelector('input[name="frequency"]:checked');
+                       return r ? r.value : 'DAILY'; }
+
+  /* The same sentence the server renders, kept live as the form is edited. */
+  function sentence() {
+    if (!on.checked) { return 'Automatic backups are off — nothing will run.'; }
+
+    var f = freq(), when;
+    if (f === 'WEEKLY')       { when = 'every ' + (DAYS[parseInt(val('weekday'), 10)] || 'Monday'); }
+    else if (f === 'MONTHLY') { when = 'on day ' + (val('day_of_month') || '1') + ' of every month'; }
+    else                      { when = 'every day'; }
+
+    var at = ('0' + (parseInt(val('hour'), 10) || 0)).slice(-2) + ':00';
+
+    var parts = [];
+    if (on_('includes_database')) { parts.push('the database'); }
+    if (on_('includes_media'))    { parts.push('uploaded files'); }
+    if (on_('includes_config'))   { parts.push('configuration'); }
+    if (!parts.length) {
+      return 'Set to run ' + when + ' at ' + at +
+             ' — but nothing is selected to include, so the archive would be empty.';
+    }
+
+    var what = parts.length === 1 ? parts[0]
+             : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+    var n    = parseInt(val('retention_count'), 10);
+    var keep = n === 0 ? 'keeping every archive'
+             : 'keeping the last ' + (isNaN(n) ? '—' : n);
+    return 'Backs up ' + what + ' ' + when + ' at ' + at + ', ' + keep + '.';
+  }
+
+  function paint() {
+    var f = freq();
+    /* Show only the field the chosen frequency actually uses. Hidden fields
+       stay in the form, so a value set earlier is never lost on save. */
+    form.querySelectorAll('.only-for').forEach(function (el) {
+      el.hidden = el.dataset.for !== f;
+    });
+    form.querySelectorAll('.freq-opt').forEach(function (l) {
+      l.classList.toggle('sel', l.querySelector('input').checked);
+    });
+
+    row.classList.toggle('on', on.checked);
+    title.textContent = on.checked ? 'Automatic backups are ON' : 'Automatic backups are OFF';
+    sub.textContent   = on.checked
+      ? 'TenderRadar backs itself up on the schedule below.'
+      : 'Switch this on, choose when below, then save.';
+    sum.textContent = sentence();
+    sum.classList.toggle('on', on.checked);
+  }
+
+  form.addEventListener('change', paint);
+  form.addEventListener('input', paint);
+  paint();
+})();
+</script>
+{% endblock %}

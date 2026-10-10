@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{{ p.name }} — Project — TenderRadar{% endblock %}
+{% block page_title %}{{ p.name|truncatechars:70 }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'bd:project_list' %}" class="btn btn-ghost btn-sm">{% icon 'project' %}Projects</a>
+<a href="{% url 'bd:project_edit' p.pk %}" class="btn btn-outline btn-sm">{% icon 'edit' %}Edit</a>
+{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start;">
+
+  <div class="card"><div style="padding:22px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <span class="badge badge-open">{{ p.get_sector_display }}</span>
+      <span class="badge">{{ p.category }}</span>
+      <span class="badge">{{ p.get_status_display }}</span>
+      {% if p.code %}<span class="badge">Code: {{ p.code }}</span>{% endif %}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:.85rem;margin-bottom:14px;">
+      <div><strong>Client:</strong> {{ p.client|default:"—" }}</div>
+      <div><strong>Location:</strong> {{ p.city }}{% if p.city and p.country %}, {% endif %}{{ p.country|default:"—" }}</div>
+      <div><strong>Period:</strong> {{ p.period_display }}</div>
+      <div><strong>Partners:</strong> {{ p.partners|default:"—" }}</div>
+      <div><strong>Site Area:</strong> {{ p.site_area|default:"—" }}</div>
+      <div><strong>BUA:</strong> {{ p.bua|default:"—" }}</div>
+      <div><strong>Staff-Months:</strong> {{ p.staff_months|default:"—" }}</div>
+      {% if p.tender %}<div><strong>Linked Tender:</strong> <a href="{% url 'tenders:detail' p.tender.pk %}">#{{ p.tender.pk }}</a></div>{% endif %}
+    </div>
+
+    {% if p.description %}
+    <h4 style="margin:12px 0 6px;">Description</h4>
+    <p style="font-size:.86rem;line-height:1.6;white-space:pre-line;">{{ p.description }}</p>
+    {% endif %}
+
+    {% if p.services %}
+    <h4 style="margin:12px 0 6px;">Services Provided</h4>
+    <p style="font-size:.86rem;line-height:1.6;white-space:pre-line;">{{ p.services }}</p>
+    {% endif %}
+
+    <h4 style="margin:16px 0 6px;border-top:2px solid var(--yellow);padding-top:10px;">Values (USD)</h4>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 20px;font-size:.84rem;">
+      <div><strong>Project:</strong> {% if p.project_value %}{{ p.project_value|floatformat:0 }}{% else %}—{% endif %}</div>
+      <div><strong>Design:</strong> {% if p.design_value %}{{ p.design_value|floatformat:0 }}{% else %}—{% endif %}</div>
+      <div><strong>Supervision:</strong> {% if p.spv_value %}{{ p.spv_value|floatformat:0 }}{% else %}—{% endif %}</div>
+      <div><strong>PMO:</strong> {% if p.pmo_value %}{{ p.pmo_value|floatformat:0 }}{% else %}—{% endif %}</div>
+      <div><strong>Studies:</strong> {% if p.studies_value %}{{ p.studies_value|floatformat:0 }}{% else %}—{% endif %}</div>
+      <div><strong>Contract Total:</strong> {% if p.contract_value_total %}{{ p.contract_value_total|floatformat:0 }}{% else %}—{% endif %}</div>
+    </div>
+
+    {% if p.contact_person or p.contact_email or p.contact_phone %}
+    <h4 style="margin:16px 0 6px;border-top:2px solid var(--yellow);padding-top:10px;">Client Contact</h4>
+    <div style="font-size:.84rem;line-height:1.7;">
+      {% if p.contact_person %}{{ p.contact_person }}<br>{% endif %}
+      {% if p.contact_phone %}{{ p.contact_phone }}<br>{% endif %}
+      {% if p.contact_email %}{{ p.contact_email }}<br>{% endif %}
+      {% if p.contact_address %}{{ p.contact_address }}<br>{% endif %}
+      {% if p.contact_website %}<a href="{{ p.contact_website }}" target="_blank">{{ p.contact_website }}</a>{% endif %}
+    </div>
+    {% endif %}
+  </div></div>
+
+  <div>
+    <div class="card" style="margin-bottom:16px;"><div style="padding:16px 18px;">
+      <div class="card-title" style="margin-bottom:10px;">{% icon 'file' %}Tendering Documents</div>
+      {% for d in p.documents.all %}
+      <div style="padding:8px 0;border-bottom:1px solid #f3f3f3;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <a href="{{ d.file.url }}" target="_blank" style="font-size:.8rem;font-weight:600;">{{ d.title|truncatechars:34 }}</a>
+          {% if is_bd_user %}
+          <form method="post" action="{% url 'bd:project_doc_delete' p.pk d.pk %}" onsubmit="return confirm('Remove this document?')">
+            {% csrf_token %}<button type="submit" style="background:none;border:none;color:#c00;cursor:pointer;font-weight:700;">{% icon 'x' %}</button>
+          </form>
+          {% endif %}
+        </div>
+        <div style="font-size:.68rem;color:#999;">{{ d.get_doc_type_display }} · {{ d.uploaded_at|date:"d M Y" }}
+          {% if d.extracted_text %} · <span style="color:#1a8840;">text indexed</span>{% endif %}</div>
+      </div>
+      {% empty %}
+      <div style="font-size:.8rem;color:#aaa;">No documents yet — attach the proposal, RFP, and contract for AI proposal composition.</div>
+      {% endfor %}
+
+      <form method="post" action="{% url 'bd:project_doc_upload' p.pk %}" enctype="multipart/form-data" style="margin-top:14px;padding-top:12px;border-top:1px solid #eee;">
+        {% csrf_token %}
+        <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;">Attach Document</div>
+        <select name="doc_type" style="width:100%;padding:7px 8px;border:1px solid #ddd;font-family:inherit;font-size:.8rem;margin-bottom:6px;">
+          {% for code,label in doc_types %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+        </select>
+        <input type="text" name="title" placeholder="Title (optional)" style="width:100%;padding:7px 8px;border:1px solid #ddd;font-family:inherit;font-size:.8rem;margin-bottom:6px;">
+        <input type="file" name="document" required style="width:100%;font-size:.78rem;margin-bottom:8px;">
+        <button type="submit" class="btn btn-black btn-sm" style="width:100%;">{% icon 'upload' %}Upload</button>
+      </form>
+    </div></div>
+
+    <div class="card"><div style="padding:16px 18px;">
+      <div class="card-title" style="margin-bottom:10px;">{% icon 'info' %}Meta</div>
+      <div style="font-size:.78rem;color:#777;line-height:1.8;">
+        Added: {{ p.created_at|date:"d M Y" }}<br>
+        Updated: {{ p.updated_at|date:"d M Y, H:i" }}
+      </div>
+      {% if is_bd_user %}
+      <form method="post" action="{% url 'bd:project_delete' p.pk %}" style="margin-top:14px;"
+            onsubmit="return confirm('Delete this project and all its documents permanently?')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' %}Delete Project</button>
+      </form>
+      {% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

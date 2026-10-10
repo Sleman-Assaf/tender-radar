@@ -1,0 +1,76 @@
+# requirements.txt
+
+# Core Django
+Django>=4.2,<5.0
+
+# Database driver. Required whenever DB_ENGINE is django.db.backends.mysql —
+# without it `manage.py migrate` fails with "Error loading MySQLdb module".
+# Leave DB_ENGINE blank and the project falls back to SQLite, which needs nothing.
+mysqlclient>=2.2
+
+# Async task queue
+celery>=5.3
+redis>=5.0
+django-celery-beat>=2.5
+django-celery-results>=2.5
+
+# HTTP + HTML parsing
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=4.9
+
+# Optional: regenerating the PDF guides (docs/make_add_source_guide.py)
+# pypdf>=4.0
+
+# Optional: production MSSQL support (AJi standard stack)
+# mssql-django>=1.4
+# pyodbc>=4.0
+
+# Optional: for Selenium-based scrapers (JS-heavy portals)
+# selenium>=4.15
+# webdriver-manager>=4.0
+
+cloudscraper>=1.2.71
+curl-cffi>=0.7.0
+apscheduler>=3.10
+
+# HTTPS production server
+waitress>=3.0
+pyOpenSSL>=24.0
+cryptography>=42.0
+
+whitenoise>=6.6.0
+
+# Integrations
+# MS Graph e-mail + WhatsApp (WaSenderAPI) use `requests` (already listed above)
+ldap3>=2.9            # Microsoft LDAP / Active Directory login
+
+# Dynamic Source Management System (sources_dynamic app)
+jsonschema>=4.20      # config document validation
+psutil>=5.9           # worker CPU/memory metrics
+# Playwright drives both the PLAYWRIGHT_BROWSER scraper engine and the Factory's
+# Tier 2 investigation. Optional: without it, sites whose listing needs a browser
+# are reported as UNKNOWN and queued for a developer rather than guessed at.
+#   pip install playwright && playwright install chromium
+playwright>=1.62        # optional; Tier 2 investigation + browser scrapers
+
+# The Windows desktop launcher was removed on 2026-08-12, and with it the only
+# things that needed pywin32, pystray and Pillow (the Windows service host and
+# the system-tray icon). Nothing in tenders/, tender_radar/ or sources_dynamic/
+# imports them — the site is served by serve_http.py / waitress.
+
+# Business Development module (bd app)
+openpyxl>=3.1        # seed_projects — Projects List workbook import
+python-docx>=1.1     # formatted CV generation (AJi template)
+pypdf>=4.0           # PDF CV / document text extraction
+
+# Newspaper Tenders (عطاءات الجريدة) — splits full-newspaper PDFs (Al-Ghad)
+# into tender pages by their text layer before AI extraction
+PyMuPDF>=1.24.0
+
+# Newspaper photo verification — OCR each ad crop to detect and drop photos the
+# AI mis-cropped from a neighbouring court/auction notice (photo_verify.py).
+# Optional at runtime: the pipeline degrades to a no-op when these are absent.
+# EasyOCR pulls in torch/torchvision (CPU is fine); first run downloads models.
+easyocr>=1.7
+Pillow>=10.0

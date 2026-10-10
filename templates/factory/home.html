@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+
+{% block title %}Add a Tender Website — TenderRadar{% endblock %}
+{% block page_title %} Add a Tender Website{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:dashboard' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Dashboard</a>
+{% endblock %}
+
+{% block content %}
+
+<style>
+  /* Page-scoped styles, using the shared tokens from base.html. */
+  .fx-lead{font-size:.9rem;color:var(--muted);max-width:70ch;line-height:1.6;
+           margin:0 0 18px}
+  .fx-form{display:grid;grid-template-columns:1fr;gap:14px}
+  .fx-row{display:grid;grid-template-columns:1fr 200px;gap:14px}
+  .fx-label{display:block;font-size:.66rem;font-weight:700;letter-spacing:.1em;
+            text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .fx-hint{font-size:.74rem;color:var(--muted-2);margin-top:5px}
+  .fx-url{font-size:.95rem;padding:12px 14px}
+  .fx-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+              padding-top:4px}
+  .fx-mode{border:1px solid var(--line);background:var(--paper-3);
+           padding:12px 14px;font-size:.78rem;color:var(--ink-2);line-height:1.6}
+  .fx-mode strong{color:var(--ink)}
+
+  /* Progress steps */
+  .fx-steps{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .fx-step{display:flex;align-items:center;gap:10px;font-size:.82rem;
+           color:var(--muted-2)}
+  .fx-step .fx-dot{width:16px;height:16px;border:1px solid var(--line-2);
+                   flex:0 0 16px;display:inline-flex;align-items:center;
+                   justify-content:center;font-size:.6rem;font-weight:700}
+  .fx-step.is-doing{color:var(--ink);font-weight:600}
+  .fx-step.is-doing .fx-dot{border-color:var(--yellow);background:var(--yellow);
+                            color:var(--ink)}
+  .fx-step.is-done{color:var(--ink-3)}
+  .fx-step.is-done .fx-dot{border-color:var(--ok);background:var(--ok);
+                           color:#fff}
+  .fx-elapsed{font-size:.74rem;color:var(--muted-2);margin-top:12px}
+
+  .fx-fields{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+  .fx-field{font-size:.68rem;font-weight:700;letter-spacing:.04em;
+            padding:3px 8px;border:1px solid var(--line);text-transform:uppercase}
+  .fx-field.ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+  .fx-field.part{color:var(--warn);background:var(--warn-bg);
+                 border-color:var(--warn)}
+  .fx-field.bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad)}
+
+  .fx-sim{font-size:.72rem;color:var(--warn);background:var(--warn-bg);
+          border-left:3px solid var(--warn);padding:9px 12px;margin-bottom:16px;
+          font-weight:600}
+  .fx-title-cell{font-weight:600;color:var(--ink);max-width:46ch}
+  @media(max-width:760px){ .fx-row{grid-template-columns:1fr} }
+</style>
+
+<!-- ── The one thing the employee does ─────────────────────────────────── -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'plus' %}Add a website</span>
+  </div>
+  <div class="card-pad">
+
+    {% if simulated %}
+    <div class="fx-sim">
+      Test mode — scrapers are written by a placeholder, not the real AI model.
+      Results show whether a site <em>can</em> be read, not final quality.
+    </div>
+    {% endif %}
+
+    <p class="fx-lead">
+      Paste the address of a page that lists tenders. TenderRadar will read the
+      page, build a collector for it, and show you what it finds. You don't need
+      to know anything technical.
+    </p>
+
+    <div class="fx-form">
+      <div>
+        <label class="fx-label" for="factory-url">Tender page address</label>
+        <input id="factory-url" type="url" class="form-control fx-url"
+               placeholder="https://www.example.gov.jo/tenders"
+               autocomplete="off" spellcheck="false">
+        <div class="fx-hint">
+          Use the page that shows the <em>list</em> of tenders, not a single tender.
+        </div>
+      </div>
+
+      <div class="fx-row">
+        <div>
+          <label class="fx-label" for="factory-name">Name <span
+                style="color:var(--muted-2);font-weight:400;">— optional</span></label>
+          <input id="factory-name" type="text" class="form-control"
+                 placeholder="e.g. Aqaba Water Authority" autocomplete="off">
+          <div class="fx-hint">How it will appear in your source list.</div>
+        </div>
+        <div>
+          <label class="fx-label" for="factory-country">Country <span
+                style="color:var(--muted-2);font-weight:400;">— optional</span></label>
+          <input id="factory-country" type="text" class="form-control"
+                 placeholder="JO" maxlength="3"
+                 style="text-transform:uppercase;">
+          <div class="fx-hint">Detected automatically if left blank.</div>
+        </div>
+      </div>
+
+      <div class="fx-actions">
+        <button id="btn-test" class="btn btn-primary" type="button">
+          {% icon 'search' %}Check this website
+        </button>
+        {% if is_staff %}
+        <button id="btn-install" class="btn btn-black" type="button">
+          {% icon 'plus' %}Add it permanently
+        </button>
+        {% endif %}
+        <span id="fx-busy" style="display:none;font-size:.78rem;
+              color:var(--muted);">Working — please keep this page open.</span>
+      </div>
+
+      <div class="fx-mode">
+        <strong>Check this website</strong> tries everything and then undoes it —
+        nothing is kept, so it is always safe to try.
+        {% if is_staff %}
+        <br><strong>Add it permanently</strong> keeps the collector and starts
+        gathering tenders on the normal schedule.
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Progress ────────────────────────────────────────────────────────── -->
+<div class="card" id="fx-progress-card" style="display:none;margin-top:16px;">
+  <div class="card-header">
+    <span class="card-title">{% icon 'gears' %}Working</span>
+  </div>
+  <div class="card-pad">
+    <ul class="fx-steps" id="fx-steps">
+      <li class="fx-step" data-step="ANALYZING"><span class="fx-dot"></span>
+        Reading the website</li>
+      <li class="fx-step" data-step="GENERATING"><span class="fx-dot"></span>
+        Building the collector</li>
+      <li class="fx-step" data-step="VERIFYING"><span class="fx-dot"></span>
+        Checking it is safe and correct</li>
+      <li class="fx-step" data-step="INSTALLING"><span class="fx-dot"></span>
+        Trying it on the real page</li>
+      <li class="fx-step" data-step="DONE"><span class="fx-dot"></span>
+        Finished</li>
+    </ul>
+    <div class="fx-elapsed" id="fx-elapsed"></div>
+  </div>
+</div>
+
+<!-- ── Result ──────────────────────────────────────────────────────────── -->
+<div id="fx-result-wrap" style="display:none;margin-top:16px;">
+  <div id="fx-alert" class="alert"></div>
+</div>
+
+<!-- ── Tenders found ───────────────────────────────────────────────────── -->
+<div class="card" id="fx-tenders-card" style="display:none;margin-top:16px;">
+  <div class="card-header">
+    <span class="card-title">{% icon 'tender' %}Tenders found</span>
+    <span id="fx-tenders-count" style="font-size:.74rem;color:var(--muted);"></span>
+  </div>
+  <div class="card-pad" style="padding-bottom:6px;">
+    <div class="fx-fields" id="fx-fields"></div>
+  </div>
+  <div class="card-body" style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:38px;">#</th>
+          <th>Tender</th>
+          <th>Reference</th>
+          <th>Deadline</th>
+          <th>Link</th>
+        </tr>
+      </thead>
+      <tbody id="fx-tenders-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── History ─────────────────────────────────────────────────────────── -->
+{% if recent %}
+<div class="card" style="margin-top:16px;">
+  <div class="card-header">
+    <span class="card-title">{% icon 'globe' %}Websites you have added</span>
+    {% if is_staff and queue_count %}
+    <span class="badge" style="color:var(--warn);background:var(--warn-bg);">
+      {{ queue_count }} need a developer
+    </span>
+    {% endif %}
+  </div>
+  <div class="card-body" style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>Website</th><th>Status</th><th>Added</th></tr>
+      </thead>
+      <tbody>
+        {% for rec in recent %}
+        <tr>
+          <td>
+            <div style="font-weight:600;">{{ rec.name }}</div>
+            <div style="font-size:.74rem;color:var(--muted);">
+              {{ rec.website_url|truncatechars:70 }}</div>
+          </td>
+          <td>
+            {% if rec.status == 'INSTALLED' %}
+              <span class="badge" style="color:var(--ok);background:var(--ok-bg);">
+                Collecting tenders</span>
+            {% elif rec.status == 'AWAITING_DEVELOPER' %}
+              <span class="badge" style="color:var(--warn);background:var(--warn-bg);">
+                Needs a developer</span>
+            {% elif rec.status == 'TEST_PASSED' %}
+              <span class="badge" style="color:var(--ink-3);">Checked only</span>
+            {% else %}
+              <span class="badge" style="color:var(--muted);">
+                {{ rec.get_status_display }}</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--muted);white-space:nowrap;">
+            {{ rec.created_at|date:"d M Y, H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card" style="margin-top:16px;">
+  <div class="card-pad" style="text-align:center;color:var(--muted);
+       font-size:.85rem;padding:34px 18px;">
+    You haven't added any websites yet. Paste an address above to try one.
+  </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+  var ORDER = ['ANALYZING', 'GENERATING', 'VERIFYING', 'INSTALLING', 'DONE'];
+
+  var el = function (id) { return document.getElementById(id); };
+  var urlEl = el('factory-url'), nameEl = el('factory-name'),
+      countryEl = el('factory-country'),
+      progressCard = el('fx-progress-card'), elapsedEl = el('fx-elapsed'),
+      resultWrap = el('fx-result-wrap'), alertEl = el('fx-alert'),
+      tendersCard = el('fx-tenders-card'), busyEl = el('fx-busy');
+  var buttons = [el('btn-test'), el('btn-install')].filter(Boolean);
+  var timer = null, ticker = null, startedAt = 0;
+
+  function csrf() {
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function markStep(stage) {
+    var idx = ORDER.indexOf(stage);
+    if (idx < 0) { return; }
+    ORDER.forEach(function (name, i) {
+      var node = document.querySelector('.fx-step[data-step="' + name + '"]');
+      if (!node) { return; }
+      node.classList.remove('is-doing', 'is-done');
+      if (i < idx) { node.classList.add('is-done'); node.querySelector('.fx-dot').textContent = '✓'; }
+      else if (i === idx) { node.classList.add('is-doing'); node.querySelector('.fx-dot').textContent = ''; }
+      else { node.querySelector('.fx-dot').textContent = ''; }
+    });
+  }
+
+  function startProgress() {
+    resultWrap.style.display = 'none';
+    tendersCard.style.display = 'none';
+    progressCard.style.display = 'block';
+    busyEl.style.display = 'inline';
+    startedAt = Date.now();
+
+    // The build is a single request, so steps advance on a timer.
+    var i = 0;
+    markStep(ORDER[0]);
+    timer = setInterval(function () {
+      i = Math.min(i + 1, ORDER.length - 2);
+      markStep(ORDER[i]);
+    }, 4000);
+
+    ticker = setInterval(function () {
+      var s = Math.round((Date.now() - startedAt) / 1000);
+      elapsedEl.textContent = s + ' second' + (s === 1 ? '' : 's') + ' so far';
+    }, 1000);
+  }
+
+  function stopProgress(done) {
+    if (timer) { clearInterval(timer); timer = null; }
+    if (ticker) { clearInterval(ticker); ticker = null; }
+    busyEl.style.display = 'none';
+    if (done) { markStep('DONE');
+      document.querySelector('.fx-step[data-step="DONE"] .fx-dot').textContent = '✓';
+      document.querySelector('.fx-step[data-step="DONE"]').classList.add('is-done');
+    }
+    setTimeout(function () { progressCard.style.display = 'none'; }, 700);
+  }
+
+  function showResult(data) {
+    resultWrap.style.display = 'block';
+    var cls = data.ok ? 'alert alert-success'
+      : (data.needs_developer ? 'alert alert-info' : 'alert alert-danger');
+    alertEl.className = cls;
+
+    var extra = '';
+    if (data.needs_developer) {
+      extra = '<div style="font-weight:400;margin-top:5px;font-size:.8rem;">'
+        + 'Our development team has been notified — you don\'t need to do '
+        + 'anything else.</div>';
+    } else if (data.detail) {
+      extra = '<div style="font-weight:400;margin-top:5px;font-size:.8rem;">'
+        + esc(data.detail) + '</div>';
+    }
+    var secs = data.duration_ms ? Math.max(1, Math.round(data.duration_ms / 1000)) : 0;
+    var took = secs ? '<div style="font-weight:400;margin-top:4px;'
+      + 'font-size:.74rem;color:var(--muted);">Took ' + secs + ' second'
+      + (secs === 1 ? '' : 's') + '.</div>' : '';
+    alertEl.innerHTML = esc(data.message || 'Finished.') + extra + took;
+  }
+
+  function showTenders(rows, completeness, total) {
+    if (!rows || !rows.length) { tendersCard.style.display = 'none'; return; }
+
+    el('fx-tenders-count').textContent =
+      rows.length + (total && total > rows.length ? ' of ' + total : '')
+      + ' found on the page';
+
+    var labels = {title: 'title', source_url: 'link', reference_no: 'reference',
+                  submission_deadline: 'deadline', entity: 'entity',
+                  publication_date: 'published'};
+    var chips = '';
+    Object.keys(completeness || {}).forEach(function (k) {
+      var v = completeness[k];
+      var cls = v === 100 ? 'ok' : (v === 0 ? 'bad' : 'part');
+      chips += '<span class="fx-field ' + cls + '">' + esc(labels[k] || k)
+        + ' ' + v + '%</span>';
+    });
+    el('fx-fields').innerHTML = chips;
+
+    el('fx-tenders-body').innerHTML = rows.map(function (r, i) {
+      var link = r.source_url
+        ? '<a href="' + esc(r.source_url) + '" target="_blank" rel="noopener">Open</a>'
+        : '<span style="color:var(--muted-2);">—</span>';
+      return '<tr>'
+        + '<td style="color:var(--muted);">' + (i + 1) + '</td>'
+        + '<td class="fx-title-cell">' + esc(r.title || '—') + '</td>'
+        + '<td style="white-space:nowrap;color:var(--ink-3);">'
+        + esc(r.reference_no || '—') + '</td>'
+        + '<td style="white-space:nowrap;color:var(--ink-3);">'
+        + esc(r.submission_deadline || '—') + '</td>'
+        + '<td>' + link + '</td>'
+        + '</tr>';
+    }).join('');
+
+    tendersCard.style.display = 'block';
+  }
+
+  function fail(message) {
+    stopProgress(false);
+    showResult({ok: false, needs_developer: false, message: message});
+  }
+
+  function run(mode) {
+    var url = (urlEl.value || '').trim();
+    if (!url) { urlEl.focus(); fail('Please paste a website address first.'); return; }
+    if (!/^https?:\/\//i.test(url)) {
+      urlEl.focus();
+      fail('The address should start with http:// or https://');
+      return;
+    }
+
+    buttons.forEach(function (b) { b.disabled = true; });
+    startProgress();
+
+    fetch('{% url "factory:api_build" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+      body: JSON.stringify({
+        url: url, mode: mode,
+        name: (nameEl.value || '').trim(),
+        country: (countryEl.value || '').trim()
+      })
+    })
+      .then(function (r) { return r.json().catch(function () {
+        throw new Error('bad-response'); }); })
+      .then(function (data) {
+        stopProgress(true);
+        showResult(data);
+        showTenders(data.rows, data.field_completeness, data.tenders);
+        if (data.ok && mode === 'install') {
+          setTimeout(function () { window.location.reload(); }, 15000);
+        }
+      })
+      .catch(function () {
+        fail('The check could not be completed — the connection to the server '
+             + 'was lost. Please try again.');
+      })
+      .finally(function () {
+        buttons.forEach(function (b) { b.disabled = false; });
+      });
+  }
+
+  el('btn-test').addEventListener('click', function () { run('dry_run'); });
+  var install = el('btn-install');
+  if (install) {
+    install.addEventListener('click', function () {
+      if (window.confirm('Add this website permanently and start collecting '
+          + 'tenders from it on the normal schedule?')) { run('install'); }
+    });
+  }
+  urlEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); run('dry_run'); }
+  });
+})();
+</script>
+
+{% endblock %}

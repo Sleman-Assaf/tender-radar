@@ -1,0 +1,46 @@
+{# templates/it/department_form.html — create / edit a department #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{{ action }} — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · Department Management{% endblock %}
+{% block page_title %}{{ action }}{% endblock %}
+{% block page_subtitle %}
+<p>{% if dept %}Editing <b>{{ dept.name }}</b>.{% else %}Name the department and, optionally, nominate its head now.{% endif %}</p>
+{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:it_departments' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Departments</a>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% include "manage/_form_styles.html" %}
+{% with it_section='departments' %}{% include "it/_nav.html" %}{% endwith %}
+
+<form method="post" class="card mgmt-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg-error">{{ form.non_field_errors }}</div>{% endif %}
+
+  {% for field in form %}
+  <div class="field-group">
+    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}
+    {{ field.errors }}
+  </div>
+  {% endfor %}
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-gold">{% icon 'save' %}{{ action }}</button>
+    <a href="{% url 'tenders:it_departments' %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+  </div>
+</form>
+
+<div style="max-width:680px;">
+  <div class="it-note" style="margin-top:24px;">
+    Setting a head also moves that user into this department — a head always
+    belongs to the department they lead. Every department belongs to a company;
+    manage companies under <a href="{% url 'tenders:it_companies' %}">Companies</a>.
+  </div>
+</div>
+{% endblock %}

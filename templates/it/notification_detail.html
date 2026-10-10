@@ -1,0 +1,69 @@
+{# templates/it/notification_detail.html — one outgoing notification, body included #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Notification — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · System Logs · Notifications{% endblock %}
+{% block page_title %}{{ note.get_channel_display }} — {{ note.get_category_display }}{% endblock %}
+{% block page_subtitle %}<p>Sent {{ note.created_at|date:"d M Y, H:i:s" }}{% if note.triggered_by %} · triggered by <b>{{ note.triggered_by.username }}</b>{% endif %}</p>{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:it_logs' %}?tab=notifications" class="btn btn-ghost btn-sm">{% icon 'bell' %}Notifications</a>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='logs' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-stats">
+  <div class="it-stat {% if note.status == 'SENT' %}ok{% else %}bad{% endif %}">
+    <div class="lbl">Status</div>
+    <div class="val" style="font-size:1.2rem;padding-top:10px;">
+      {% if note.status == 'SENT' %}<span class="state-pill on">Sent</span>{% else %}<span class="state-pill err">Failed</span>{% endif %}
+    </div>
+  </div>
+  <div class="it-stat">
+    <div class="lbl">Channel</div>
+    <div class="val" style="font-size:1.2rem;padding-top:10px;">{{ note.get_channel_display }}</div>
+    <div class="sub">{{ note.get_category_display }}</div>
+  </div>
+  <div class="it-stat">
+    <div class="lbl">When</div>
+    <div class="val" style="font-size:1.2rem;padding-top:10px;">{{ note.created_at|date:"d M Y, H:i:s" }}</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><span class="card-title">{% icon 'info' %}Details</span></div>
+  <div class="card-pad" style="font-size:.85rem;line-height:2;color:var(--ink-2);">
+    <b>To:</b> <span style="word-break:break-all;">{{ note.recipient|default:"—" }}</span><br>
+    <b>Subject:</b> {{ note.subject|default:"—" }}<br>
+    <b>Triggered by:</b> {{ note.triggered_by.username|default:"system (scheduled / automatic)" }}
+    {% if note.error_message %}
+    <div class="msg-error" style="margin-top:10px;white-space:pre-wrap;">{{ note.error_message }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">{% icon 'message' %}Message</span>
+    <span style="font-size:.74rem;color:var(--muted);">exactly as sent{% if note.is_html %} · rendered in a sandbox (no scripts){% endif %}</span>
+  </div>
+  {% if not note.body %}
+  <div class="card-pad" style="color:var(--muted);font-size:.84rem;">
+    No message body was stored for this notification — bodies are kept only for
+    notifications sent after the message log was introduced.
+  </div>
+  {% elif note.is_html %}
+  {# The body embeds scraped tender titles — our template, not entirely our
+     text — so it renders inside a sandboxed iframe: no scripts, no forms,
+     no navigation of the parent page. #}
+  <iframe sandbox="" srcdoc="{{ note.body }}"
+          style="width:100%;height:70vh;border:0;background:#fff;display:block;"
+          title="Message as sent"></iframe>
+  {% else %}
+  <div class="card-pad">
+    <pre style="white-space:pre-wrap;font-family:var(--font);font-size:.86rem;line-height:1.7;margin:0;">{{ note.body }}</pre>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

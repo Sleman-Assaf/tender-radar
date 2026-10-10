@@ -1,0 +1,94 @@
+{# templates/it/backup_restore.html — confirm a restore #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Restore Backup — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · Backup &amp; Restore{% endblock %}
+{% block page_title %}Restore Backup{% endblock %}
+{% block page_subtitle %}<p>Roll the system back to <b>{{ backup.filename }}</b>.</p>{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:it_backups' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Backups</a>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% include "manage/_form_styles.html" %}
+{% with it_section='backups' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-cols">
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'backup' %}Archive</span></div>
+    <div class="card-pad" style="font-size:.84rem;line-height:1.9;color:var(--ink-2);">
+      <b>{{ backup.filename }}</b><br>
+      Created: {{ backup.created_at|date:"d M Y, H:i" }}<br>
+      Size: {{ backup.size_display }}<br>
+      Contains: {{ backup.contents_display }}<br>
+      Created by: {{ backup.created_by.username|default:"system" }} ({{ backup.get_trigger_display }})<br>
+      {% if backup.note %}Note: {{ backup.note }}{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'info' %}What will happen</span></div>
+    <div class="card-pad" style="font-size:.82rem;line-height:1.85;color:var(--muted);">
+      1. A safety copy of the <b>current</b> state is taken first, so this restore
+         is itself reversible.<br>
+      2. The selected parts are written over the live data.<br>
+      3. Restored configuration files are kept alongside the originals as
+         <code>&lt;name&gt;.pre-restore</code>.<br>
+      4. Restart the app server afterwards so every worker picks up the restored state
+         — <b>required</b> if application code was restored.<br>
+      5. Only the parts this archive actually contains are offered below.
+    </div>
+  </div>
+
+</div>
+
+<div class="it-danger">
+  <h3>{% icon 'alert' %} This overwrites live data</h3>
+  <p>
+    Everything created since {{ backup.created_at|date:"d M Y, H:i" }} will be lost
+    from the parts you restore. The safety copy taken beforehand is your way back.
+  </p>
+
+  <form method="post" style="max-width:520px;">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="msg-error">{{ form.non_field_errors }}</div>{% endif %}
+
+    <div class="field">
+      <label>Restore which parts</label>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:.85rem;">
+        {% if form.restore_database %}<label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+          {{ form.restore_database }} Database</label>{% endif %}
+        {% if form.restore_media %}<label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+          {{ form.restore_media }} Uploaded files</label>{% endif %}
+        {% if form.restore_config %}<label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+          {{ form.restore_config }} System configuration</label>{% endif %}
+        {% if form.restore_code %}<label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+          {{ form.restore_code }} Application code</label>{% endif %}
+        {% if form.restore_docs %}<label style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink);">
+          {{ form.restore_docs }} Documentation &amp; user guide</label>{% endif %}
+      </div>
+      {% if form.restore_code %}
+      <div style="font-size:.74rem;color:var(--muted);margin-top:8px;line-height:1.6;">
+        Restoring <b>application code</b> writes the archived source files over the live ones.
+        The running server keeps executing the old code until it is restarted — restart it
+        immediately after a code restore.
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="field">
+      <label>{{ form.confirm.label }}</label>
+      {{ form.confirm }}
+      {{ form.confirm.errors }}
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button type="submit" class="btn btn-danger">{% icon 'refresh' %}Restore Now</button>
+      <a href="{% url 'tenders:it_backups' %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

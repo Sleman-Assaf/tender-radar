@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{% if mode == 'edit' %}Edit CV{% else %}Review CV{% endif %} — TenderRadar{% endblock %}
+{% block page_title %}{% if mode == 'edit' %}Edit CV — {{ engineer.full_name }}{% else %}Review Parsed CV{% endif %}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'bd:cv_list' %}" class="btn btn-ghost btn-sm">{% icon 'cv' %}CV Pool</a>
+{% endblock %}
+
+{% block content %}
+<style>
+  .bd-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 18px;}
+  .bd-field label{display:block;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;}
+  .bd-field input,.bd-field select,.bd-field textarea{width:100%;padding:8px 10px;border:1px solid #ddd;font-family:inherit;font-size:.85rem;}
+  .bd-field textarea{min-height:70px;resize:vertical;}
+  .bd-sec{margin-top:22px;border-top:2px solid var(--yellow);padding-top:12px;}
+  .bd-sec h3{font-size:.9rem;margin:0 0 10px;}
+  .bd-item{border:1px solid #eee;background:#fafafa;padding:10px 12px;margin-bottom:8px;position:relative;}
+  .bd-item .rm{position:absolute;top:6px;right:8px;background:none;border:none;color:#c00;cursor:pointer;font-size:.9rem;font-weight:700;}
+  .bd-item input,.bd-item textarea{width:100%;padding:6px 8px;border:1px solid #ddd;font-family:inherit;font-size:.8rem;margin-bottom:5px;}
+</style>
+
+{% if mode == 'review' %}
+<div class="card" style="margin-bottom:14px;background:#fffef0;border-left:4px solid var(--yellow);">
+  <div style="padding:12px 18px;font-size:.82rem;color:#666;">
+    <strong>Parsed from:</strong> {{ filename }} — review every field before saving.
+    AJiAI extraction is a draft; correct anything that looks wrong.
+  </div>
+</div>
+{% endif %}
+
+{% if mode == 'edit' %}
+<div class="card" style="margin-bottom:14px;"><div style="padding:16px 20px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+  {% if engineer.photo %}
+  <img src="{{ engineer.photo.url }}" alt="" style="width:90px;height:106px;object-fit:cover;border-radius:8px;border:2px solid var(--yellow);"
+       onerror="this.replaceWith(Object.assign(document.createElement('div'),{textContent:'⚠ stored photo cannot be displayed (EMF?)',style:'font-size:.75rem;color:#c0392b;'}))">
+  {% else %}
+  <div style="width:90px;height:106px;border-radius:8px;background:#f5f5f5;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:.7rem;">No photo</div>
+  {% endif %}
+  <form method="post" action="{% url 'bd:cv_photo_update' engineer.pk %}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <input type="file" name="photo_file" accept="image/*" style="font-size:.78rem;">
+    <button type="submit" name="action" value="upload" class="btn btn-black btn-sm">{% icon 'image' %}Upload Photo</button>
+    <button type="submit" name="action" value="re_extract" class="btn btn-outline btn-sm" title="Extract the photo from the stored original CV file">{% icon 'refresh' %}Re-extract from CV</button>
+    {% if engineer.photo %}<button type="submit" name="action" value="remove" class="btn btn-ghost btn-sm" style="color:#c00;">{% icon 'trash' %}Remove</button>{% endif %}
+  </form>
+</div></div>
+{% endif %}
+
+<form method="post" id="cvForm">
+  {% csrf_token %}
+  <div class="card"><div style="padding:20px;">
+    <div class="bd-grid">
+      <div class="bd-field"><label>Full Name *</label><input name="full_name" value="{{ initial.full_name }}" required></div>
+      <div class="bd-field"><label>Current Position</label><input name="current_position" value="{{ initial.current_position }}"></div>
+      <div class="bd-field"><label>Profession</label><input name="profession" value="{{ initial.profession }}"></div>
+      <div class="bd-field"><label>Nationality</label><input name="nationality" value="{{ initial.nationality }}"></div>
+      <div class="bd-field"><label>Date of Birth</label><input name="date_of_birth" value="{{ initial.date_of_birth }}"></div>
+      <div class="bd-field"><label>Years with Firm</label><input name="years_with_firm" value="{{ initial.years_with_firm }}"></div>
+      <div class="bd-field"><label>Total Years of Experience</label><input type="number" name="years_experience" value="{{ initial.years_experience }}" min="0"></div>
+      <div class="bd-field"><label>Discipline</label>
+        <select name="discipline">
+          {% for code,label in disciplines %}
+          <option value="{{ code }}" {% if initial.discipline == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="bd-field"><label>Status</label>
+        <select name="status">
+          {% for code,label in statuses %}
+          <option value="{{ code }}" {% if engineer and engineer.status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="bd-field"><label>Countries of Work Experience</label><input name="countries_experience" value="{{ initial.countries_experience }}" placeholder="Jordan, Qatar, KSA"></div>
+      <div class="bd-field" style="grid-column:1/-1;"><label>Memberships (one per line)</label><textarea name="memberships">{{ initial.memberships }}</textarea></div>
+      <div class="bd-field" style="grid-column:1/-1;"><label>Synopsis</label><textarea name="synopsis" style="min-height:110px;">{{ initial.synopsis }}</textarea></div>
+      <div class="bd-field" style="grid-column:1/-1;"><label>Internal Notes</label><textarea name="notes">{% if engineer %}{{ engineer.notes }}{% endif %}</textarea></div>
+    </div>
+
+    <div class="bd-sec"><h3>Education</h3><div id="sec-education"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addItem('education')">{% icon 'plus' %}Add Education</button></div>
+
+    <div class="bd-sec"><h3>Employment Record</h3><div id="sec-employment"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addItem('employment')">{% icon 'plus' %}Add Employment</button></div>
+
+    <div class="bd-sec"><h3>Experience Record (Projects)</h3><div id="sec-experience"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addItem('experience')">{% icon 'plus' %}Add Project</button></div>
+
+    <div class="bd-sec"><h3>Professional Courses / Certifications</h3><div id="sec-certifications"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addItem('certifications')">{% icon 'plus' %}Add Certification</button></div>
+
+    <div class="bd-sec"><h3>Languages</h3><div id="sec-languages"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addItem('languages')">{% icon 'plus' %}Add Language</button></div>
+
+    <input type="hidden" name="education_json"      id="json-education">
+    <input type="hidden" name="employment_json"     id="json-employment">
+    <input type="hidden" name="experience_json"     id="json-experience">
+    <input type="hidden" name="certifications_json" id="json-certifications">
+    <input type="hidden" name="languages_json"      id="json-languages">
+
+    <div style="margin-top:26px;display:flex;gap:10px;flex-wrap:wrap;">
+      {% if mode == 'review' %}
+      <button type="submit" name="action" value="save" class="btn btn-black">{% icon 'save' %}Save to CV Pool</button>
+      <button type="submit" name="action" value="format_only" class="btn btn-outline">{% icon 'download' %}Download Formatted Only (don't save)</button>
+      {% else %}
+      <button type="submit" name="action" value="save" class="btn btn-black">{% icon 'save' %}Save Changes</button>
+      {% endif %}
+      <a href="{% url 'bd:cv_list' %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+    </div>
+  </div></div>
+</form>
+
+{{ initial.education_json|json_script:"init-education" }}
+{{ initial.employment_json|json_script:"init-employment" }}
+{{ initial.experience_json|json_script:"init-experience" }}
+{{ initial.certifications_json|json_script:"init-certifications" }}
+{{ initial.languages_json|json_script:"init-languages" }}
+
+<script>
+const SCHEMAS = {
+  education:      [['institution','Institution'],['country','Country'],['years','Years (e.g. 2003-2007)'],['degree','Degree']],
+  employment:     [['employer','Employer'],['position','Position'],['period','Period (e.g. 2012 – Present)'],['responsibilities','Responsibilities (one per line)','ta']],
+  experience:     [['project','Project'],['country','Country'],['year','Year'],['position','Position'],['client','Client'],['description','Description','ta']],
+  certifications: [['period','Period'],['name','Course / Certification'],['location','Location']],
+  languages:      [['language','Language'],['reading','Reading'],['speaking','Speaking'],['writing','Writing']],
+};
+const state = {};
+
+function render(section){
+  const wrap = document.getElementById('sec-'+section);
+  wrap.innerHTML = '';
+  state[section].forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'bd-item';
+    let html = `<button type="button" class="rm" onclick="rmItem('${section}',${idx})">{% icon 'x' %}</button>`;
+    SCHEMAS[section].forEach(([key,label,type]) => {
+      let val = item[key];
+      if (Array.isArray(val)) val = val.join('\n');
+      val = (val === undefined || val === null) ? '' : String(val);
+      const esc = val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+      if (type === 'ta') {
+        html += `<textarea data-k="${key}" placeholder="${label}" rows="3">${esc}</textarea>`;
+      } else {
+        html += `<input data-k="${key}" placeholder="${label}" value="${esc}">`;
+      }
+    });
+    div.innerHTML = html;
+    div.querySelectorAll('input,textarea').forEach(el => {
+      el.addEventListener('input', () => {
+        const k = el.dataset.k;
+        state[section][idx][k] = (k === 'responsibilities')
+          ? el.value.split('\n').filter(Boolean) : el.value;
+      });
+    });
+    wrap.appendChild(div);
+  });
+}
+function addItem(section){
+  const blank = {};
+  SCHEMAS[section].forEach(([k]) => blank[k] = (k === 'responsibilities') ? [] : '');
+  state[section].push(blank);
+  render(section);
+}
+function rmItem(section, idx){ state[section].splice(idx,1); render(section); }
+
+Object.keys(SCHEMAS).forEach(section => {
+  let init = [];
+  try { init = JSON.parse(JSON.parse(document.getElementById('init-'+section).textContent)); }
+  catch(e){ try { init = JSON.parse(document.getElementById('init-'+section).textContent); } catch(_){} }
+  if (!Array.isArray(init)) init = [];
+  state[section] = init;
+  render(section);
+});
+
+document.getElementById('cvForm').addEventListener('submit', () => {
+  Object.keys(SCHEMAS).forEach(section => {
+    document.getElementById('json-'+section).value = JSON.stringify(state[section]);
+  });
+});
+</script>
+{% endblock %}

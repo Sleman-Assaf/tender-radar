@@ -1,0 +1,37 @@
+{# templates/tenders/_newspaper_ticker_card.html #}
+{% load tender_extras %}
+<a href="{% url 'tenders:detail' t.pk %}"
+   style="display:inline-flex;align-items:center;gap:12px;
+          min-width:290px;max-width:360px;height:64px;
+          padding:0 16px;
+          background:var(--paper-2);
+          border-right:1px solid var(--line);
+          text-decoration:none;color:inherit;transition:background .15s;"
+   onmouseover="this.style.background='var(--paper)'"
+   onmouseout="this.style.background='var(--paper-2)'">
+
+  {% if t.newspaper_meta.ad_image %}
+  {# Small crop of the printed announcement — the photo IS the tender #}
+  <img src="{{ t.newspaper_meta.ad_image.url }}" alt=""
+       style="flex:none;width:48px;height:48px;object-fit:cover;object-position:top;
+              border:1px solid var(--line);background:#fff;display:block;"/>
+  {% else %}
+  <span style="flex:none;width:48px;height:48px;display:inline-flex;align-items:center;
+               justify-content:center;border:1px solid var(--line);background:var(--paper);
+               color:var(--muted-2);">{% icon 'newspaper' 20 %}</span>
+  {% endif %}
+
+  <span style="display:inline-flex;flex-direction:column;justify-content:center;min-width:0;">
+    <span style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">
+      {% country_flag t.country 'sm' %}
+      <span class="pill" style="padding:1px 6px;font-size:.6rem;background:var(--ink);color:var(--yellow);font-weight:700;">NEWSPAPER</span>
+      <span style="font-size:.68rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">
+        {{ t.newspaper_meta.edition.source_display_en|default:t.source.name }}
+      </span>
+    </span>
+    <span class="ar" dir="rtl" style="font-size:.8rem;color:var(--ink);font-weight:600;
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px;text-align:right;">
+      {{ t.title_ar|default:t.title|truncatechars:50 }}
+    </span>
+  </span>
+</a>

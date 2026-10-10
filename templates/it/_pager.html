@@ -1,0 +1,24 @@
+{% load tender_extras %}
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination center" style="padding:0 16px 26px;">
+  {% if page_obj.has_previous %}
+    <a href="?{% query_transform request page=1 %}" class="page-link" title="First page">&laquo;</a>
+    <a href="?{% query_transform request page=page_obj.previous_page_number %}" class="page-link" title="Previous page">&lsaquo;</a>
+  {% endif %}
+  {% for num in page_obj.paginator.page_range %}
+    {% if page_obj.number == num %}<span class="page-link current">{{ num }}</span>
+    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}<a href="?{% query_transform request page=num %}" class="page-link">{{ num }}</a>{% endif %}
+  {% endfor %}
+  {% if page_obj.has_next %}
+    <a href="?{% query_transform request page=page_obj.next_page_number %}" class="page-link" title="Next page">&rsaquo;</a>
+    <a href="?{% query_transform request page=page_obj.paginator.num_pages %}" class="page-link" title="Last page">&raquo;</a>
+  {% endif %}
+  <span class="muted" style="font-size:.72rem;margin-left:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} &middot; {{ page_obj.paginator.count }} total
+  </span>
+</div>
+{% elif page_obj.paginator.count %}
+<div class="muted" style="font-size:.72rem;margin-top:14px;padding:0 16px 26px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;text-align:center;">
+  {{ page_obj.paginator.count }} entr{{ page_obj.paginator.count|pluralize:"y,ies" }}
+</div>
+{% endif %}

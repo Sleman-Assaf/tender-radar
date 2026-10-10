@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Feedback Management — TenderRadar{% endblock %}
+{% block page_title %} User Feedback{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_hub' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Hub</a>
+{% endblock %}
+
+{% block content %}
+
+<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:120px;padding:14px 18px;background:#fff8e0;border-radius:10px;border:1px solid #ffe88a;">
+    <div style="font-size:1.4rem;font-weight:800;color:#b8860b;">{{ counts.new }}</div>
+    <div style="font-size:.72rem;color:#b8860b;text-transform:uppercase;letter-spacing:.06em;">New</div>
+  </div>
+  <div style="flex:1;min-width:120px;padding:14px 18px;background:#e8f4fd;border-radius:10px;border:1px solid #c0d8f8;">
+    <div style="font-size:1.4rem;font-weight:800;color:var(--info);">{{ counts.in_review }}</div>
+    <div style="font-size:.72rem;color:var(--info);text-transform:uppercase;letter-spacing:.06em;">In Review</div>
+  </div>
+  <div style="flex:1;min-width:120px;padding:14px 18px;background:#f0f0ff;border-radius:10px;border:1px solid #d0c8f8;">
+    <div style="font-size:1.4rem;font-weight:800;color:#6644cc;">{{ counts.planned }}</div>
+    <div style="font-size:.72rem;color:#6644cc;text-transform:uppercase;letter-spacing:.06em;">Planned</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="padding:12px 16px;">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div>
+        <label style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;display:block;margin-bottom:3px;">Status</label>
+        <select name="status" class="form-control" style="min-width:130px;">
+          <option value="">All Statuses</option>
+          {% for val, label in statuses %}
+          <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;display:block;margin-bottom:3px;">Type</label>
+        <select name="type" class="form-control" style="min-width:160px;">
+          <option value="">All Types</option>
+          {% for val, label in types %}
+          <option value="{{ val }}" {% if type_filter == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-black btn-sm">{% icon 'filter' %}Filter</button>
+      <a href="{% url 'tenders:manage_feedback' %}" class="btn btn-ghost btn-sm">{% icon 'x-circle' %}Clear</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div style="padding:0;">
+    {% for fb in feedbacks %}
+    <a href="{% url 'tenders:manage_feedback_detail' fb.pk %}"
+       style="display:block;padding:14px 18px;border-bottom:1px solid #f5f5f5;
+              text-decoration:none;transition:background .12s;"
+       onmouseover="this.style.background='#fafbff'"
+       onmouseout="this.style.background=''">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+
+        <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;
+          background:{% if fb.priority == 'HIGH' %}#e74c3c{% elif fb.priority == 'MEDIUM' %}#f39c12{% else %}#bbb{% endif %};"
+          title="{{ fb.get_priority_display }} priority"></span>
+
+        <span style="font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:12px;flex-shrink:0;
+          {% if fb.feedback_type == 'BUG' %}background:#fee;color:#c00;
+          {% elif fb.feedback_type == 'FEATURE' %}background:#e8f4fd;color:var(--info);
+          {% elif fb.feedback_type == 'CHANGE' %}background:#f0f9f0;color:#27ae60;
+          {% else %}background:#f5f5f5;color:#666;{% endif %}">
+          {{ fb.get_feedback_type_display }}
+        </span>
+
+        <span style="flex:1;font-weight:600;font-size:.86rem;color:#222;min-width:0;">{{ fb.title }}</span>
+
+        <span style="font-size:.74rem;color:#999;flex-shrink:0;">
+          {{ fb.author.get_full_name|default:fb.author.username }}
+        </span>
+
+        <span style="font-size:.72rem;color:#bbb;flex-shrink:0;">{{ fb.created_at|date:"d M Y" }}</span>
+
+        <span style="font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:12px;flex-shrink:0;
+          {% if fb.status == 'NEW' %}background:#fff8e0;color:#b8860b;
+          {% elif fb.status == 'IN_REVIEW' %}background:#e8f4fd;color:var(--info);
+          {% elif fb.status == 'PLANNED' %}background:#f0f0ff;color:#6644cc;
+          {% elif fb.status == 'DONE' %}background:#e8fdf0;color:#1a8840;
+          {% else %}background:#f5f5f5;color:#888;{% endif %}">
+          {{ fb.get_status_display }}
+        </span>
+      </div>
+    </a>
+    {% empty %}
+    <div style="text-align:center;padding:48px;color:#aaa;">
+      <div style="font-size:1.8rem;margin-bottom:10px;"></div>
+      <div style="font-weight:700;font-size:.88rem;">No feedback found</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

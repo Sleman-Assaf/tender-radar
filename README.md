@@ -1,24 +1,36 @@
 # Tender Radar
 
-**Django platform for monitoring tender sources and related news.**
+**A Django platform for tender collection, document extraction and AI-assisted opportunity review.**
 
-**بالعربية:** منصة لمتابعة مصادر العطاءات والأخبار، وإدارة المصادر ومعالجة المحتوى، مع تكاملات ذكاء اصطناعي اختيارية.
+Tender Radar brings procurement opportunities from portal scrapers, newspaper PDFs and magazine/news sources into a searchable dashboard. Teams can review tenders, bookmark opportunities, add notes and manage the sources that supply them.
 
-> **Source upload pending.** The workspace disconnected during transfer. This repository currently documents the project; the prepared source files still need to be committed. The commands below apply to the complete prepared source package, not this incomplete checkout.
+**بالعربية:** نظام لجمع العطاءات من المواقع والصحف، تنظيمها والبحث فيها، واستخدام الذكاء الاصطناعي للمساعدة في التصنيف واستخراج المعلومات.
 
-## Main capabilities
+## Features
 
-- Tender and news source management.
-- Newspaper and magazine tender monitoring.
-- Dynamic scraper generation and validation.
-- Optional AI processing through a compatible external HTTP service.
-- Scheduled processing with optional Celery and Redis.
+- Search and country/category/date filters, tender details, bookmarks and team notes.
+- Python scrapers for government portals and international procurement sources.
+- Newspaper PDF processing, configurable AI extraction and optional OCR verification.
+- News and magazine collection, duplicate handling and AI summaries.
+- Source administration, run history, metrics and role-based permissions.
+- Business development tools for project records, engineer profiles and CV generation.
 
-## Local startup: complete prepared package
+External portals can change their pages or authentication. An included scraper does not guarantee that its portal is currently reachable.
 
-Use Python 3.12 and a fresh environment. The prepared local settings use SQLite and disable in-process schedulers.
+## Technology
 
-### Windows PowerShell
+| Area | Stack |
+| --- | --- |
+| Application | Django 4.2, server-rendered templates, JavaScript |
+| Collection | requests, BeautifulSoup, lxml, curl-cffi; optional Playwright |
+| Documents | PyMuPDF, pypdf, python-docx, openpyxl |
+| AI | Configurable HTTP AI services and application provider settings |
+| Scheduling | APScheduler in the web process; Celery/Redis integrations |
+| Storage/serving | SQLite locally; Waitress and WhiteNoise deployment support |
+
+## Windows setup
+
+Use **Python 3.12** for the prepared local setup. Open this project folder in VS Code and use its PowerShell terminal:
 
 ```powershell
 python -m venv .venv
@@ -33,7 +45,11 @@ python manage.py check
 python manage.py runserver 127.0.0.1:8000
 ```
 
-### Linux/macOS
+Open **http://127.0.0.1:8000** and sign in with the account you created. Administration uses the application's System Dashboard; `/admin/` is not mounted in this version.
+
+If PowerShell blocks activation, use `.\.venv\Scripts\python.exe` instead of `python` in subsequent commands. Repeat the `DJANGO_SETTINGS_MODULE` assignment in each new terminal.
+
+## Linux/macOS setup
 
 ```bash
 python3 -m venv .venv
@@ -46,29 +62,65 @@ python manage.py createsuperuser
 python manage.py runserver 127.0.0.1:8000
 ```
 
-Open **http://127.0.0.1:8000** and sign in with your account. This project uses its System Dashboard; a standard Django `/admin/` route is not mounted.
+The local settings use SQLite and disable automatic external scans. Redis, a GPU and an AI server are not needed to open the web application. AI extraction/enrichment requires its separately configured services.
 
-## Dependencies and configuration
+## AI and optional integrations
 
-The local dependency set covers Django 4.2, Celery, Redis integration, HTTP parsers and document processing. The original full requirements include heavier optional scraping/OCR dependencies.
+`.env.example` documents variables; it is **not loaded automatically**. Set them through your shell or process manager:
 
-`.env.example` is a reference and is not automatically loaded. Set configuration through shell/process environment variables. External AI processing requires a compatible service; model weights are not included. Running the web interface does not start background workers or live scraping. Redis and Celery require separate setup for scheduled processing.
+```powershell
+$env:AJIAI_API_BASE = "http://127.0.0.1:8001"
+$env:AJIAI_API_KEY = "<your-own-key-if-required>"
+```
 
-## Source layout
+`AJIAI_API_BASE` expects the compatible AI HTTP service, including the configured `/api/general-chat/` endpoint. A raw Ollama URL is not automatically a replacement for this API. Other provider/model options are managed through application settings. Model weights and private service credentials are not bundled.
+
+- **Browser scrapers:** install `playwright`, then run `python -m playwright install chromium`.
+- **OCR verification:** install `easyocr`; it may download models and large PyTorch dependencies.
+- **Full integrations/MySQL:** use `requirements.txt`. Linux may need database development libraries for `mysqlclient`. Configure `DB_*` and use the main settings module for a non-SQLite deployment.
+- **Celery tasks:** start Redis separately, configure its broker URL and run `python -m celery -A tender_radar worker --loglevel=info --pool=solo`. Use an appropriate Linux deployment for production workers.
+
+The main web process also has APScheduler jobs. Do not run duplicate schedulers for the same workload. Newspaper and magazine automatic scheduling is intentionally off in the local configuration.
+
+## Manual collection
+
+After initial source seeding, inspect the command and optionally test a source:
+
+```powershell
+python manage.py run_scrapers --help
+python manage.py run_scrapers --source JordanGTDScraper --dry-run --no-ai
+```
+
+Even a dry run fetches the external portal. Use it only when you intend to contact that source.
+
+## Structure
 
 | Folder | Purpose |
 | --- | --- |
-| `tender_radar/` | Settings and application routes |
-| `tenders/` | Tender handling and source scrapers |
-| `newspaper_tenders/` | Newspaper monitoring |
-| `magazine_tenders/` | Magazine/news monitoring |
-| `scraper_factory/` | Scraper generation, validation and health checks |
-| `sources_dynamic/` | Dynamic source handling |
+| `tender_radar/` | Settings, routes and Celery configuration |
+| `tenders/` | Dashboard, tender models, scrapers and permissions |
+| `newspaper_tenders/`, `magazine_tenders/` | Newspaper and news processing |
+| `bd/` | Business development and CV tools |
+| `sources_dynamic/` | Retained legacy source-engine schema |
+| `scraper_factory/` | Retained factory code; not installed as an active app in this snapshot |
 | `templates/`, `static/` | Interface and assets |
-| `desktop/` | Desktop/deployment tooling |
 
-## Preparation checks
+## Verification and tests
 
-The complete prepared package passed Python parsing, Django system checks, 147 migrations on a fresh SQLite database, source seeding and authenticated page-rendering checks for the homepage, newspaper tenders and news. Full application tests and external AI/scraping integrations were not verified.
+Preparation checks use Python 3.12: Django system checks, a new SQLite database, migrations, initial source seeding and page-rendering smoke checks. External portals, OCR model execution and AI integrations require separate testing.
 
-Production databases, private configuration, credentials and imported company data are excluded. No open-source license is granted unless the rights holder adds one.
+Run the existing test suite with:
+
+```powershell
+python manage.py test --settings=tender_radar.settings_test
+```
+
+## Contents and configuration
+
+Production databases, company import workbooks, credentials, private keys, uploads, generated static output and local environments are excluded. Supply your own accounts and configuration. No open-source license is granted unless the rights holder adds one.
+
+## Test fixture privacy
+
+Captured pages have transient browser-verification scripts removed. The blocked Al Arabiya business-page fixture is a minimal static representation without session tokens or client network information. Article link and image markup was preserved in the other sanitized fixtures.
+
+TenderWell authentication requires your own `TENDERWELL_REFRESH_TOKEN` and `TENDERWELL_CLIENT_FINGERPRINT` environment values. No refresh token or browser fingerprint is included. With no token configured, the scraper skips authentication and may have limited access to public data.

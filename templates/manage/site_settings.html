@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{# Path: templates/manage/site_settings.html #}
+
+{% block title %}AI & Site Settings — TenderRadar{% endblock %}
+{% block page_title %} AI & Site Settings{% endblock %}
+
+{% block content %}
+
+<div class="set-tabs">
+  <a href="{% url 'tenders:manage_site_settings' %}" class="active">AI &amp; Site</a>
+  <a href="{% url 'tenders:manage_integrations' %}">Integrations</a>
+</div>
+<style>
+  .set-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);
+    max-width:680px;margin:0 auto 22px}
+  .set-tabs a{display:inline-flex;align-items:center;gap:7px;padding:11px 18px;font-size:.76rem;font-weight:700;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-decoration:none;border-bottom:2px solid transparent}
+  .set-tabs a:hover{color:var(--ink)}
+  .set-tabs a.active{color:var(--ink);border-bottom-color:var(--yellow)}
+
+  /* base.html zeroes .card-body padding */
+  .set-form .card-body{padding:18px}
+  .set-form .set-actions{display:flex;align-items:center;gap:10px;padding:2px 0 32px}
+</style>
+
+<div class="set-form" style="max-width:680px;margin:0 auto;">
+<form method="post">
+{% csrf_token %}
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><span class="card-title">{% icon 'scraper' %} Scraping Mode</span></div>
+  <div class="card-body mode-list">
+    {% for val, label in cfg.ScrapingMode.choices %}
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;cursor:pointer;
+                  {% if not forloop.last %}border-bottom:1px solid #f0f0f0;{% endif %}">
+      <input type="radio" name="scraping_mode" value="{{ val }}"
+             {% if cfg.scraping_mode == val %}checked{% endif %}
+             style="margin-top:3px;accent-color:var(--yellow);">
+      <div>
+        <div style="font-weight:700;font-size:.85rem;">{{ label }}</div>
+      </div>
+    </label>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><span class="card-title">{% icon 'ai' %} AI Classification & Translation</span></div>
+  <div class="card-body">
+
+    <p style="font-size:.82rem;color:#666;margin-bottom:16px;">
+      After each scraper run, TenderRadar uses AI to:<br>
+      1. <strong>Classify</strong> — detect AEC-relevant tenders<br>
+      2. <strong>Translate</strong> — generate Arabic titles for AEC tenders
+    </p>
+
+    {% for val, label in cfg.AIService.choices %}
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:12px;
+                  border:2px solid {% if cfg.ai_service == val %}var(--yellow){% else %}#eee{% endif %};
+                  border-radius:8px;margin-bottom:10px;cursor:pointer;
+                  background:{% if cfg.ai_service == val %}#fffef0{% else %}#fff{% endif %};">
+      <input type="radio" name="ai_service" value="{{ val }}"
+             {% if cfg.ai_service == val %}checked{% endif %}
+             style="margin-top:4px;accent-color:var(--yellow);"
+             onchange="document.querySelectorAll('.ai-service-panel').forEach(p=>p.style.display='none');
+                       document.getElementById('panel-{{ val }}').style.display='block';
+                       document.querySelectorAll('[data-ai-label]').forEach(l=>{
+                         l.style.border=l.dataset.aiLabel==='{{ val }}'?'2px solid var(--yellow)':'2px solid #eee';
+                         l.style.background=l.dataset.aiLabel==='{{ val }}'?'#fffef0':'#fff';
+                       });"
+             data-val="{{ val }}">
+      <div data-ai-label="{{ val }}" style="flex:1;">
+        <div style="font-weight:700;font-size:.88rem;">{{ label }}</div>
+        {% if val == 'AJIBRAIN' %}
+        <div style="font-size:.76rem;color:#888;margin-top:3px;">
+          Calls local AJiBrain/Ollama API — one tender at a time. No cost. Requires AJiBrain running.
+        </div>
+        {% else %}
+        <div style="font-size:.76rem;color:#888;margin-top:3px;">
+          Sends all new titles in batches to OpenAI API — fast, accurate, costs per token.
+          GPT-4o-mini: ~$0.002 per 1000 tenders.
+        </div>
+        {% endif %}
+      </div>
+    </label>
+    {% endfor %}
+
+    <div id="panel-OPENAI" class="ai-service-panel"
+         style="display:{% if cfg.ai_service == 'OPENAI' %}block{% else %}none{% endif %};
+                margin-top:16px;padding:16px;background:#f8f9fb;border-radius:8px;border:1px solid #e0e8f0;">
+      <h4 style="margin:0 0 14px;font-size:.88rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;">OpenAI Configuration</h4>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">
+          API Key
+        </label>
+        <input type="password" name="openai_api_key"
+               value="{{ cfg.openai_api_key }}"
+               placeholder="sk-..."
+               class="form-control"
+               style="font-family:monospace;font-size:.82rem;">
+        <div style="font-size:.7rem;color:#aaa;margin-top:3px;">
+          Leave blank to keep current key.
+          Get yours at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="flex:1;min-width:160px;">
+          <label style="font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Model</label>
+          <select name="openai_model" class="form-control">
+                      <option value="gpt-4o-mini"   {% if cfg.openai_model == "gpt-4o-mini"   %}selected{% endif %}>gpt-4o-mini (recommended)</option>
+          <option value="gpt-4o"        {% if cfg.openai_model == "gpt-4o"        %}selected{% endif %}>gpt-4o (best quality)</option>
+          <option value="gpt-4-turbo"   {% if cfg.openai_model == "gpt-4-turbo"   %}selected{% endif %}>gpt-4-turbo</option>
+          <option value="gpt-3.5-turbo" {% if cfg.openai_model == "gpt-3.5-turbo" %}selected{% endif %}>gpt-3.5-turbo (cheapest)</option>
+          </select>
+          <div style="font-size:.7rem;color:#aaa;margin-top:3px;">gpt-4o-mini recommended — best cost/quality</div>
+        </div>
+
+        <div style="min-width:130px;">
+          <label style="font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Classify Batch</label>
+          <input type="number" name="openai_classify_batch" value="{{ cfg.openai_classify_batch }}"
+                 min="10" max="200" class="form-control">
+          <div style="font-size:.7rem;color:#aaa;margin-top:3px;">Titles per classify call</div>
+        </div>
+
+        <div style="min-width:130px;">
+          <label style="font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Translate Batch</label>
+          <input type="number" name="openai_translate_batch" value="{{ cfg.openai_translate_batch }}"
+                 min="5" max="100" class="form-control">
+          <div style="font-size:.7rem;color:#aaa;margin-top:3px;">Titles per translate call</div>
+        </div>
+      </div>
+
+      <button type="button" onclick="testOpenAI()"
+              style="padding:6px 14px;background:var(--info);color:#fff;border:none;
+                     border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:700;">
+         {% icon 'signal' %}Test Connection
+      </button>
+      <span id="openai-test-result" style="font-size:.78rem;margin-left:10px;"></span>
+    </div>
+
+    <div id="panel-OLLAMA" class="ai-service-panel"
+         style="display:{% if cfg.ai_service == 'OLLAMA' %}block{% else %}none{% endif %};
+                margin-top:16px;padding:16px;background:#f8f9fb;border-radius:8px;border:1px solid #e0e8f0;">
+      <h4 style="margin:0 0 14px;font-size:.88rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;">Ollama Direct Configuration</h4>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Ollama Base URL</label>
+        <input type="text" name="ollama_base_url" value="{{ cfg.ollama_base_url }}"
+               placeholder="http://localhost:11434" class="form-control" style="font-family:monospace;font-size:.82rem;">
+        <div style="font-size:.7rem;color:#aaa;margin-top:3px;">Default: http://localhost:11434</div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Model Name</label>
+        <input type="text" name="ollama_model" value="{{ cfg.ollama_model }}"
+               placeholder="qwen2.5:7b" class="form-control" style="font-family:monospace;font-size:.82rem;">
+        <div style="font-size:.7rem;color:#aaa;margin-top:3px;">
+          As shown in <code>ollama list</code>. Examples: <code>qwen2.5:7b</code>, <code>llama3.1:8b</code>,
+          <code>qwen2.5:14b</code>, <code>mistral:7b</code>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+        <div style="min-width:130px;">
+          <label style="font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Classify Batch</label>
+          <input type="number" name="ollama_classify_batch" value="{{ cfg.ollama_classify_batch }}"
+                 min="5" max="100" class="form-control">
+          <div style="font-size:.7rem;color:#aaa;margin-top:3px;">Titles per classify call (smaller for local models)</div>
+        </div>
+        <div style="min-width:130px;">
+          <label style="font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Translate Batch</label>
+          <input type="number" name="ollama_translate_batch" value="{{ cfg.ollama_translate_batch }}"
+                 min="3" max="50" class="form-control">
+          <div style="font-size:.7rem;color:#aaa;margin-top:3px;">Titles per translate call</div>
+        </div>
+      </div>
+
+      <button type="button" onclick="testOllama()"
+              style="padding:6px 14px;background:#27ae60;color:#fff;border:none;
+                     border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:700;">
+         {% icon 'signal' %}Test Connection
+      </button>
+      <span id="ollama-test-result" style="font-size:.78rem;margin-left:10px;"></span>
+    </div>
+
+    <div id="panel-AJIBRAIN" class="ai-service-panel"
+         style="display:{% if cfg.ai_service == 'AJIBRAIN' %}block{% else %}none{% endif %};
+                margin-top:16px;padding:16px;background:#f8f9fb;border-radius:8px;border:1px solid #e0e8f0;">
+      <h4 style="margin:0 0 8px;font-size:.88rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;">AJiBrain Configuration</h4>
+      <div style="font-size:.8rem;color:#666;">
+        AJiBrain URL is set in <code>settings.py</code> → <code>AJIBRAIN_BASE_URL</code>
+        (currently: <code>{{ AJIBRAIN_URL }}</code>).<br>
+        AJiBrain processes one tender at a time — slower but free and private.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="set-actions">
+  <button type="submit" class="btn btn-primary">{% icon 'save' 15 %}Save settings</button>
+  <a href="{% url 'tenders:manage_hub' %}" class="btn btn-ghost">{% icon 'arrow-left' %}Back to control panel</a>
+</div>
+
+</form>
+</div>
+
+<script>
+async function testOllama() {
+  const btn = event.target;
+  const result = document.getElementById('ollama-test-result');
+  const url   = document.querySelector('[name=ollama_base_url]').value.trim() || 'http://localhost:11434';
+  const model = document.querySelector('[name=ollama_model]').value.trim() || 'qwen2.5:7b';
+  btn.disabled = true;
+  result.style.color = '#888'; result.textContent = 'Testing...';
+  try {
+    const r = await fetch(url + '/api/tags', {signal: AbortSignal.timeout(8000)});
+    if (r.ok) {
+      const d = await r.json();
+      const models = (d.models || []).map(m => m.name);
+      const hasModel = models.some(m => m === model || m.startsWith(model.split(':')[0]));
+      if (hasModel) {
+        result.style.color='#27ae60';
+        result.textContent = '✓ Connected — model "'+model+'" found!';
+      } else {
+        result.style.color='#e67e22';
+        result.textContent = ' Connected but "'+model+'" not found. Available: '+models.slice(0,5).join(', ');
+      }
+    } else {
+      result.style.color='#e74c3c'; result.textContent='✗ HTTP '+r.status;
+    }
+  } catch(e) { result.style.color='#e74c3c'; result.textContent='✗ '+e.message; }
+  btn.disabled = false;
+}
+
+async function testOpenAI() {
+  const btn = event.target;
+  const result = document.getElementById('openai-test-result');
+  const key = document.querySelector('[name=openai_api_key]').value.trim();
+  const model = document.querySelector('[name=openai_model]').value;
+  if (!key) { result.style.color='#e74c3c'; result.textContent='Enter API key first'; return; }
+  btn.disabled = true;
+  result.style.color = '#888'; result.textContent = 'Testing...';
+  try {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Authorization': 'Bearer '+key, 'Content-Type': 'application/json'},
+      body: JSON.stringify({model, max_tokens:5, messages:[{role:'user',content:'Hi'}]})
+    });
+    if (r.ok) { result.style.color='#27ae60'; result.textContent='✓ Connected — '+model+' works!'; }
+    else { const d=await r.json(); result.style.color='#e74c3c'; result.textContent='✗ '+d.error?.message; }
+  } catch(e) { result.style.color='#e74c3c'; result.textContent='✗ Network error: '+e.message; }
+  btn.disabled = false;
+}
+</script>
+{% endblock %}

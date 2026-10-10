@@ -1,0 +1,182 @@
+{# templates/it/logs.html — System Logs #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}System Logs — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · System Logs{% endblock %}
+{% block page_title %}System Logs{% endblock %}
+{% block page_subtitle %}<p>Administrative audit trail, sign-in history, scraper runs and outgoing notifications.</p>{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='logs' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-filters">
+  <div class="it-seg">
+    <a href="?tab=admin"    class="{% if tab != 'logins' and tab != 'scrapers' %}active{% endif %}">Admin Actions ({{ counts.admin }})</a>
+    <a href="?tab=logins"   class="{% if tab == 'logins' %}active{% endif %}">Sign-ins ({{ counts.logins }})</a>
+    <a href="?tab=scrapers" class="{% if tab == 'scrapers' %}active{% endif %}">Scraper Runs ({{ counts.scrapers }})</a>
+    <a href="?tab=notifications" class="{% if tab == 'notifications' %}active{% endif %}">Notifications ({{ counts.notifications }})</a>
+  </div>
+
+  {% if tab == 'notifications' %}
+  <form method="get" style="display:flex;gap:9px;align-items:center;">
+    <input type="hidden" name="tab" value="notifications">
+    <select name="channel" onchange="this.form.submit()">
+      <option value="">All channels</option>
+      {% for code, label in channels %}
+      <option value="{{ code }}" {% if channel_filter == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All statuses</option>
+      {% for code, label in statuses %}
+      <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+
+  {% if tab != 'logins' and tab != 'scrapers' and tab != 'notifications' %}
+  <form method="get" style="display:flex;gap:9px;align-items:center;">
+    <input type="hidden" name="tab" value="admin">
+    <select name="action" onchange="this.form.submit()">
+      <option value="">All actions</option>
+      {% for code, label in actions %}
+      <option value="{{ code }}" {% if action_filter == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+
+{% if tab == 'logins' %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'login' %}Sign-in History</span>
+    {% if page_obj.paginator.count %}<span class="pill mut" style="font-size:.7rem;">{{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}</span>{% endif %}
+  </div>
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>User</th><th>When</th><th>IP Address</th><th>Client</th></tr></thead>
+      <tbody>
+        {% for l in logins %}
+        <tr>
+          <td style="font-weight:600;">{{ l.user.username }}</td>
+          <td style="font-size:.78rem;">{{ l.logged_in_at|date:"d M Y, H:i:s" }}</td>
+          <td style="font-size:.78rem;font-variant-numeric:tabular-nums;">{{ l.ip_address|default:"—" }}</td>
+          <td style="font-size:.73rem;color:var(--muted);">{{ l.user_agent|truncatechars:80 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align:center;padding:36px;color:var(--muted);">No sign-ins recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include "it/_pager.html" %}
+  </div>
+</div>
+
+{% elif tab == 'scrapers' %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'scraper' %}Scraper Runs</span>
+    {% if page_obj.paginator.count %}<span class="pill mut" style="font-size:.7rem;">{{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}</span>{% endif %}
+  </div>
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>Source</th><th>Started</th><th>Found</th><th>New</th><th>Updated</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for s in scrapes %}
+        <tr>
+          <td style="font-weight:600;">{{ s.source.name }}</td>
+          <td style="font-size:.78rem;">{{ s.started_at|date:"d M Y, H:i" }}</td>
+          <td style="font-variant-numeric:tabular-nums;">{{ s.tenders_found }}</td>
+          <td style="font-variant-numeric:tabular-nums;">{{ s.tenders_new }}</td>
+          <td style="font-variant-numeric:tabular-nums;">{{ s.tenders_updated }}</td>
+          <td>
+            {% if s.status == 'SUCCESS' %}<span class="state-pill on">Success</span>
+            {% elif s.status == 'FAILED' %}<span class="state-pill err" title="{{ s.error_message }}">Failed</span>
+            {% elif s.status == 'PARTIAL' %}<span class="state-pill warn">Partial</span>
+            {% else %}<span class="state-pill off">Running</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;padding:36px;color:var(--muted);">No scraper runs recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include "it/_pager.html" %}
+  </div>
+</div>
+
+{% elif tab == 'notifications' %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'bell' %}Outgoing Notifications</span>
+    {% if page_obj.paginator.count %}<span class="pill mut" style="font-size:.7rem;">{{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}</span>{% endif %}
+  </div>
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>When</th><th>Channel</th><th>Type</th><th>Recipient</th><th>Subject / Message</th><th>Triggered By</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for n in notifications %}
+        <tr>
+          <td style="font-size:.78rem;white-space:nowrap;">{{ n.created_at|date:"d M Y, H:i:s" }}</td>
+          <td style="font-size:.78rem;">{{ n.get_channel_display }}</td>
+          <td style="font-size:.78rem;">{{ n.get_category_display }}</td>
+          <td style="font-size:.76rem;word-break:break-all;max-width:220px;" title="{{ n.recipient }}">{{ n.recipient|truncatechars:60|default:"—" }}</td>
+          <td style="font-size:.76rem;color:var(--muted);max-width:280px;" title="{{ n.subject }}">{{ n.subject|truncatechars:80|default:"—" }}</td>
+          <td style="font-size:.78rem;">{{ n.triggered_by.username|default:"system" }}</td>
+          <td>
+            {% if n.status == 'SENT' %}<span class="state-pill on">Sent</span>
+            {% else %}<span class="state-pill err" title="{{ n.error_message }}">Failed</span>{% endif %}
+          </td>
+          <td style="text-align:right;">
+            <a href="{% url 'tenders:it_notification_detail' n.pk %}" class="btn btn-ghost btn-sm">{% icon 'eye' %}View</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" style="text-align:center;padding:36px;color:var(--muted);">
+          No notifications have been sent yet. Every outgoing e-mail and WhatsApp
+          message — digest, feedback alerts, tests — will be recorded here.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include "it/_pager.html" %}
+  </div>
+</div>
+
+{% else %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'shield' %}Administrative Actions</span>
+    {% if page_obj.paginator.count %}<span class="pill mut" style="font-size:.7rem;">{{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}</span>{% endif %}
+  </div>
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td style="font-size:.78rem;white-space:nowrap;">{{ e.created_at|date:"d M Y, H:i:s" }}</td>
+          <td style="font-weight:600;font-size:.8rem;">{{ e.actor.username|default:"system" }}</td>
+          <td>
+            {% if e.action == 'ACCESS_DENIED' %}<span class="state-pill err">{{ e.get_action_display }}</span>
+            {% else %}<span style="font-size:.78rem;">{{ e.get_action_display }}</span>{% endif %}
+          </td>
+          <td style="font-size:.79rem;">{{ e.target|default:"—" }}</td>
+          <td style="font-size:.75rem;color:var(--muted);">{{ e.detail|truncatechars:90 }}</td>
+          <td style="font-size:.73rem;color:var(--muted);font-variant-numeric:tabular-nums;">{{ e.ip_address|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;padding:36px;color:var(--muted);">
+          No administrative actions recorded yet.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include "it/_pager.html" %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

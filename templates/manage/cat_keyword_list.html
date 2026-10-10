@@ -1,0 +1,95 @@
+{# templates/manage/cat_keyword_list.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Category Keywords — TenderRadar{% endblock %}
+{% block page_title %} Category Keywords — كلمات التصنيف{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_hub' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Hub</a>
+<a href="{% url 'tenders:manage_cat_keyword_add' %}" class="btn btn-gold btn-sm">{% icon 'plus' %}Add Keyword</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="card mb-4" style="padding:14px 20px;">
+  <form method="get" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search keyword..." class="form-control" style="min-width:200px;flex:1;">
+    <select name="cat" class="form-control" style="width:220px;">
+      <option value="">All Categories</option>
+      {% for code, label in categories %}
+      <option value="{{ code }}" {% if cat == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="lang" class="form-control" style="width:130px;">
+      <option value="">All Languages</option>
+      <option value="EN" {% if lang == 'EN' %}selected{% endif %}>English</option>
+      <option value="AR" {% if lang == 'AR' %}selected{% endif %}>Arabic</option>
+    </select>
+    <button type="submit" class="btn btn-gold">{% icon 'filter' %}Filter</button>
+    <a href="{% url 'tenders:manage_cat_keywords' %}" class="btn btn-ghost">{% icon 'x-circle' %}Clear</a>
+    <span style="font-size:.8rem;color:var(--grey-5);">{{ keywords|length }} results</span>
+  </form>
+</div>
+
+<div style="margin-bottom:12px;">
+  <a href="{% url 'tenders:manage_rel_keywords' %}" class="btn btn-ghost btn-sm">{% icon 'refresh' %}Switch to Relevance Keywords</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <table class="data-table">
+      <thead>
+        <tr><th>Keyword</th><th>Language</th><th>Category</th><th>Active</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for kw in keywords %}
+        <tr>
+          <td>
+            <span style="font-size:.95rem;font-weight:500;color:var(--black);{% if kw.language == 'AR' %}font-family:var(--font-ar),sans-serif;direction:rtl;{% endif %}">
+              {{ kw.keyword }}
+            </span>
+          </td>
+          <td>
+            <span class="badge {% if kw.language == 'AR' %}badge-award{% else %}badge-country{% endif %}">{{ kw.language }}</span>
+          </td>
+          <td><span class="badge badge-cat">{{ kw.get_category_display }}</span></td>
+          <td>
+            <button onclick="toggleKW({{ kw.pk }}, this)"
+              class="badge {% if kw.is_active %}badge-open{% else %}badge-closed{% endif %}"
+              style="cursor:pointer;border:none;background:none;padding:3px 10px;">
+              {% if kw.is_active %}● On{% else %}○ Off{% endif %}
+            </button>
+          </td>
+          <td>
+            <div style="display:flex;gap:5px;">
+              <a href="{% url 'tenders:manage_cat_keyword_edit' kw.pk %}" class="btn btn-ghost btn-sm">{% icon 'edit' %}Edit</a>
+              <form method="post" action="{% url 'tenders:manage_cat_keyword_delete' kw.pk %}" onsubmit="return confirm('Delete?')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">{% icon 'x' %}</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--grey-5);">
+          No keywords found. <a href="{% url 'tenders:manage_cat_keyword_add' %}">Add one →</a>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleKW(pk, btn) {
+  fetch(`/manage/keywords/category/${pk}/toggle/`, { method:'POST', headers:{'X-CSRFToken':getCsrf()} })
+    .then(r=>r.json()).then(data=>{
+      btn.className=`badge ${data.active?'badge-open':'badge-closed'}`;
+      btn.style='cursor:pointer;border:none;background:none;padding:3px 10px;';
+      btn.textContent=data.active?'● On':'○ Off';
+    });
+}
+</script>
+{% endblock %}

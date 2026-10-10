@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Send Feedback — TenderRadar{% endblock %}
+{% block eyebrow %}Account · Support{% endblock %}
+{% block page_title %}Send Feedback{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:my_feedback' %}" class="btn btn-ghost btn-sm">{% icon 'inbox' %}My Submissions</a>
+{% endblock %}
+
+{% block content %}
+
+<form method="post" enctype="multipart/form-data" class="settings-form">
+  {% csrf_token %}
+  <p class="fld-help" style="margin-bottom:4px;">Report a bug, request a feature, suggest a change, or share any thoughts with the TenderRadar team.</p>
+
+  <div class="fieldset">
+    <label class="fld-label">Type</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% for val, label in types %}
+      <label style="cursor:pointer;">
+        <input type="radio" name="feedback_type" value="{{ val }}" {% if val == 'BUG' %}checked{% endif %} style="display:none;" onchange="pickType(this)">
+        <span class="fb-type-btn {% if val == 'BUG' %}on{% endif %}">{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="fieldset">
+    <label class="fld-label">Subject <span style="color:var(--bad);">*</span></label>
+    <input type="text" name="title" required maxlength="200" class="form-control" placeholder="Brief description of your feedback">
+  </div>
+
+  <div class="fieldset">
+    <label class="fld-label">Details <span style="color:var(--bad);">*</span></label>
+    <textarea name="body" required rows="6" class="form-control" placeholder="What happened, what you expected, steps to reproduce, or what you'd like to see…"></textarea>
+  </div>
+
+  <div class="fieldset">
+    <label class="fld-label">Attachment <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted-2);">optional · max 10 MB</span></label>
+    <div id="drop-zone" class="dropzone"
+         onclick="document.getElementById('attachment-input').click()"
+         ondragover="event.preventDefault();this.style.borderColor='var(--ink)';this.style.background='var(--paper)';"
+         ondragleave="this.style.borderColor='var(--line-2)';this.style.background='var(--paper-2)';"
+         ondrop="handleDrop(event)">
+      <div id="drop-placeholder">
+        <div style="margin-bottom:8px;color:var(--muted);">{% icon 'paperclip' 26 %}</div>
+        <div style="font-size:.84rem;font-weight:600;color:var(--ink-3);margin-bottom:3px;">Click to attach or drag &amp; drop</div>
+        <div style="font-size:.74rem;color:var(--muted-2);">Images (PNG, JPG, GIF, WebP) · Documents (PDF, DOCX, XLSX)</div>
+      </div>
+      <div id="file-preview" style="display:none;align-items:center;gap:12px;justify-content:center;">
+        <div id="preview-thumb" style="width:48px;height:48px;background:var(--paper-3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;color:var(--muted);">{% icon 'file' 22 %}</div>
+        <div style="text-align:left;">
+          <div id="preview-name" style="font-weight:700;font-size:.84rem;color:var(--ink);"></div>
+          <div id="preview-size" style="font-size:.72rem;color:var(--muted-2);margin-top:2px;"></div>
+        </div>
+        <button type="button" onclick="clearFile(event)" class="btn btn-ghost btn-sm" style="margin-left:auto;">{% icon 'x' 13 %} Remove</button>
+      </div>
+    </div>
+    <input type="file" id="attachment-input" name="attachment" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" style="display:none;" onchange="handleFileSelect(this.files[0])">
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-yellow">{% icon 'megaphone' 15 %} Submit Feedback</button>
+    <a href="{% url 'tenders:my_feedback' %}" class="btn btn-ghost">{% icon 'inbox' %}My Submissions</a>
+  </div>
+</form>
+
+<style>
+.settings-form{max-width:660px}
+.fieldset{padding:16px 0;border-bottom:1px solid var(--line)}
+.fieldset:first-of-type{padding-top:4px}
+.fieldset:last-of-type{border-bottom:none}
+.fld-label{display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px}
+.fld-help{font-size:.8rem;color:var(--muted);line-height:1.55}
+.form-actions{display:flex;gap:10px;padding-top:22px}
+.fb-type-btn{display:inline-block;padding:8px 15px;font-size:.82rem;font-weight:600;border:1px solid var(--line-2);background:var(--paper-2);color:var(--ink-2);cursor:pointer;transition:.12s}
+.fb-type-btn:hover{border-color:var(--ink)}
+.fb-type-btn.on{background:var(--yellow);border-color:var(--yellow);color:var(--ink)}
+.dropzone{border:1px dashed var(--line-2);padding:22px;text-align:center;cursor:pointer;background:var(--paper-2);transition:.2s;user-select:none}
+</style>
+<script>
+function pickType(radio){document.querySelectorAll('.fb-type-btn').forEach(b=>b.classList.remove('on'));radio.closest('label').querySelector('.fb-type-btn').classList.add('on');}
+</script>
+
+<script>
+const ALLOWED_TYPES = ['image/png','image/jpeg','image/gif','image/webp',
+  'application/pdf','application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain','text/csv'];
+
+const FILE_ICONS = {
+  'image': '', 'pdf': '', 'word': '', 'excel': '', 'text': ''
+};
+
+function getIcon(type) {
+  if (type.startsWith('image/')) return '';
+  if (type === 'application/pdf') return '';
+  if (type.includes('word')) return '';
+  if (type.includes('excel') || type.includes('sheet')) return '';
+  return '';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  const dz = document.getElementById('drop-zone');
+  dz.style.borderColor = 'var(--line-2)'; dz.style.background = 'var(--paper-2)';
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const input = document.getElementById('attachment-input');
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  handleFileSelect(file);
+}
+
+function handleFileSelect(file) {
+  if (!file) return;
+
+  if (file.size > 10 * 1024 * 1024) {
+    alert('File too large — maximum size is 10 MB.');
+    clearFile(); return;
+  }
+  if (ALLOWED_TYPES.length && !ALLOWED_TYPES.includes(file.type) && !file.type.startsWith('image/')) {
+    alert('File type not allowed. Please attach an image or document.');
+    clearFile(); return;
+  }
+
+  document.getElementById('drop-placeholder').style.display = 'none';
+  const preview = document.getElementById('file-preview');
+  preview.style.display = 'flex';
+  document.getElementById('preview-name').textContent = file.name;
+  document.getElementById('preview-size').textContent = formatSize(file.size);
+
+  const thumb = document.getElementById('preview-thumb');
+  if (file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      thumb.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+    };
+    reader.readAsDataURL(file);
+  }
+  /* non-image: keep the default file icon already in the thumb */
+}
+
+function clearFile(e) {
+  if (e) e.stopPropagation();
+  document.getElementById('attachment-input').value = '';
+  document.getElementById('drop-placeholder').style.display = 'block';
+  document.getElementById('file-preview').style.display = 'none';
+  document.getElementById('preview-thumb').innerHTML = '';
+}
+</script>
+{% endblock %}

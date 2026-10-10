@@ -1,0 +1,79 @@
+{# templates/manage/source_form.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{{ action }} — TenderRadar{% endblock %}
+{% block page_title %}{{ action }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_sources' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Sources</a>
+{% endblock %}
+
+{% block content %}
+{% include "manage/_form_styles.html" %}
+
+<div class="card mgmt-form" style="max-width:760px;">
+  <div class="card-header"><span class="card-title">{{ action }}</span></div>
+  <div style="padding:0;">
+    <form method="post">
+      {% csrf_token %}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="field-group">
+          <label>Name (English) *</label>
+          {{ form.name }}
+          {% if form.name.errors %}<ul class="errorlist">{% for e in form.name.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <div class="field-group">
+          <label>Name (Arabic) — الاسم</label>
+          {{ form.name_ar }}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;">
+        <div class="field-group">
+          <label>Country *</label>
+          {{ form.country }}
+        </div>
+        <div class="field-group">
+          <label>Base URL *</label>
+          {{ form.base_url }}
+          <div class="helptext">Root portal URL, e.g. https://www.gtd.gov.jo</div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Scraper Class *</label>
+        {{ form.scraper_class }}
+        <div class="helptext">
+          Must match a class in <code>tenders/scrapers/__init__.py</code>.
+          Available: JordanGTDScraper, SaudiEtimadScraper, UAEAbuDhabiScraper,
+          UAEDubaiTendersScraper, OmanTenderBoardScraper, QatarTendersScraper, KuwaitCAPTScraper,
+          GenericHTMLScraper
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="field-group">
+          <label>Description</label>
+          {{ form.description }}
+        </div>
+        <div class="field-group">
+          <label>Description (Arabic) — وصف</label>
+          {{ form.description_ar }}
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          {{ form.is_active }} Active
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-gold"> {% icon 'save' %}Save Source</button>
+        <a href="{% url 'tenders:manage_sources' %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

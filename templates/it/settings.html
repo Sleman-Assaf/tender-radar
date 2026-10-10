@@ -1,0 +1,79 @@
+{# templates/it/settings.html — settings hub. Each card links to the one #}
+{# existing implementation of that screen rather than duplicating it, so #}
+{# there is exactly one place each setting is edited. #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Settings — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · Settings{% endblock %}
+{% block page_title %}System Settings{% endblock %}
+{% block page_subtitle %}<p>E-mail, Microsoft Graph, AI and general configuration.</p>{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='settings' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-grid">
+
+  <a href="{% url 'tenders:manage_integrations' %}" class="it-card">
+    <div class="ic">{% icon 'message' 20 %}</div>
+    <div class="t">Integrations</div>
+    <div class="d">Microsoft 365 mail sending and the Graph credentials, Active Directory
+      sign-in, and WhatsApp alerting.</div>
+    <div class="m">
+      <span><b class="{% if intg.graph_enabled %}ok{% endif %}">{% if intg.graph_enabled %}ON{% else %}OFF{% endif %}</b> mail</span>
+      <span><b class="{% if intg.ldap_enabled %}ok{% endif %}">{% if intg.ldap_enabled %}ON{% else %}OFF{% endif %}</b> LDAP</span>
+      <span><b class="{% if intg.wa_enabled %}ok{% endif %}">{% if intg.wa_enabled %}ON{% else %}OFF{% endif %}</b> WhatsApp</span>
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:manage_site_settings' %}" class="it-card">
+    <div class="ic">{% icon 'cpu' 20 %}</div>
+    <div class="t">AI &amp; Site Settings</div>
+    <div class="d">AI service (AJiBrain / OpenAI / Ollama), model, API key and batch
+      sizes, and the site-wide scraping mode.</div>
+    <div class="m">
+      {% if site %}<span>{{ site.get_ai_service_display|truncatechars:28 }}</span>
+      <span>{{ site.get_scraping_mode_display|truncatechars:28 }}</span>{% endif %}
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:manage_digest' %}" class="it-card">
+    <div class="ic">{% icon 'bell' 20 %}</div>
+    <div class="t">Daily Digest</div>
+    <div class="d">The daily tender e-mail: enable, schedule, send now or send a test.</div>
+    <div class="m">
+      <span><b class="{% if intg.digest_enabled %}ok{% endif %}">{% if intg.digest_enabled %}ON{% else %}OFF{% endif %}</b> digest</span>
+      {% if intg %}<span><b class="info">{{ intg.digest_hour|stringformat:"02d" }}:00</b> daily</span>{% endif %}
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:it_backups' %}" class="it-card">
+    <div class="ic">{% icon 'database' 20 %}</div>
+    <div class="t">Backup &amp; Restore</div>
+    <div class="d">Archive schedule, retention and the restore history.</div>
+  </a>
+
+</div>
+
+{% if can_administer %}
+<div class="sec-head"><h2>System Management</h2></div>
+<div class="it-grid">
+  <a href="{% url 'tenders:manage_hub' %}" class="it-card">
+    <div class="ic">{% icon 'globe' 20 %}</div>
+    <div class="t">Tender System Management</div>
+    <div class="d">Countries, scraper sources, tendering URLs, keywords, tender access and feedback.</div>
+  </a>
+  <a href="{% url 'tenders:analytics_hub' %}" class="it-card">
+    <div class="ic">{% icon 'chart' 20 %}</div>
+    <div class="t">Analytics</div>
+    <div class="d">Sign-in, open-tender, portal-click, evaluation and scraper-health reports.</div>
+  </a>
+</div>
+{% endif %}
+
+<div class="it-note" style="margin-top:26px;">
+  These screens are shared with the rest of the application — the System Dashboard
+  links to the single implementation of each rather than keeping its own copy,
+  so a change made here is the change everywhere.
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+# requirements.txt
+
+# Core Django
+Django>=4.2,<5.0
+
+# Async task queue
+celery>=5.3
+redis>=5.0
+django-celery-beat>=2.5
+django-celery-results>=2.5
+
+# HTTP + HTML parsing
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=4.9
+
+# Optional: production MSSQL support (AJi standard stack)
+# mssql-django>=1.4
+# pyodbc>=4.0
+
+# Optional: for Selenium-based scrapers (JS-heavy portals)
+# selenium>=4.15
+# webdriver-manager>=4.0
+
+cloudscraper>=1.2.71
+apscheduler>=3.10

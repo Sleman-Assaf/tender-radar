@@ -1,0 +1,207 @@
+{# templates/tenders/sources.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Scraper Sources — TenderRadar{% endblock %}
+{% block page_title %}Scraper Sources{% endblock %}
+
+{% block topbar_actions %}
+{% if request.user.is_superuser %}
+<a href="{% url 'tenders:manage_sources' %}" class="btn btn-outline btn-sm"> {% icon 'arrow-left' %}Manage Sources</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% include "it/_styles.html" %}
+{% with it_section='sources' %}{% include "it/_nav.html" %}{% endwith %}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+  <div class="stat-card">
+    <div class="stat-label">Total Sources</div>
+    <div class="stat-value">{{ total_sources }}</div>
+    <div class="stat-sub">Configured portals</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Sources</div>
+    <div class="stat-value" style="color:#4caf82;">{{ active_sources }}</div>
+    <div class="stat-sub">Running on schedule</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Tendering URLs</div>
+    <div class="stat-value" style="color:var(--blue);">{{ total_urls }}</div>
+    <div class="stat-sub">Across all sources</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Tenders</div>
+    <div class="stat-value" style="color:var(--gold);">{{ total_tenders }}</div>
+    <div class="stat-sub">All scraped records</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'database' %} Government Portal Sources</span>
+    <span style="font-size:.78rem;color:var(--grey-5);">Scrapes run automatically every 6 hours via Celery Beat</span>
+  </div>
+  <div class="card-body">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Source</th><th>Country</th><th>Scraper</th>
+          <th>URLs</th><th>Tenders</th><th>Last Run</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for source in sources %}
+        <tr>
+          <td>
+            <div style="font-weight:600;color:var(--ink);font-size:.88rem;">{{ source.name }}</div>
+            {% if source.name_ar %}
+              <div style="font-size:.76rem;color:var(--grey-5);font-family:var(--font-ar),sans-serif;direction:rtl;text-align:right;">{{ source.name_ar }}</div>
+            {% endif %}
+            <a href="{{ source.base_url }}" target="_blank" style="font-size:.72rem;color:var(--gold);margin-top:2px;display:inline-block;">
+               {{ source.base_url|truncatechars:45 }}
+            </a>
+          </td>
+          <td>
+            <span class="badge badge-country">
+              {% country_flag source.country %} {{ source.country.name_en }}
+            </span>
+          </td>
+          <td>
+            <code style="font-size:.74rem;color:var(--orange);background:rgba(224,140,64,.1);padding:2px 7px;border-radius:4px;">
+              {{ source.scraper_class }}
+            </code>
+          </td>
+          <td>
+            {% if request.user.is_superuser %}
+            <a href="{% url 'tenders:manage_source_urls' source.pk %}"
+               style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;color:var(--blue);"
+               title="Manage URLs">
+               {{ source.url_count }}
+            </a>
+            {% else %}
+              <span style="color:var(--blue);font-weight:700;">{{ source.url_count }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{% url 'tenders:list' %}?source={{ source.pk }}"
+               style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.05rem;color:var(--gold);">
+              {{ source.tender_count|default:0 }}
+            </a>
+          </td>
+          <td style="font-size:.8rem;">
+            {% if source.last_scraped_at %}
+              <div style="color:var(--text);">{{ source.last_scraped_at|date:"d M Y H:i" }}</div>
+              <div style="color:var(--grey-5);font-size:.72rem;">{{ source.last_scraped_at|timesince }} ago</div>
+            {% else %}
+              <span style="color:var(--grey-5);">Never run</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if source.is_active %}
+              <span class="badge badge-open">● Active</span>
+            {% else %}
+              <span class="badge badge-closed">Inactive</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button
+                class="btn btn-gold btn-sm"
+                onclick="runScraper({{ source.pk }}, this)"
+                {% if not source.is_active %}disabled style="opacity:.5;"{% endif %}
+              >{% icon 'play' %}Run</button>
+              {% if request.user.is_superuser %}
+              <a href="{% url 'tenders:manage_source_edit' source.pk %}" class="btn btn-ghost btn-sm">{% icon 'edit' %}Edit</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8" style="text-align:center;padding:48px;color:var(--grey-5);">
+            No sources configured.
+            {% if request.user.is_superuser %}
+              <a href="{% url 'tenders:manage_source_add' %}">Add one →</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% comment %} This panel used to describe Celery Beat and link to Django Admin →
+   Periodic Tasks. Neither exists in this deployment: the Django admin is not
+   mounted, and nothing starts a Celery worker. The automatic run is APScheduler
+   inside the web process, so that is what is documented here. {% endcomment %}
+<div class="card mt-4">
+  <div class="card-header"><span class="card-title">{% icon 'refresh' %}Automatic Scanning</span></div>
+  <div style="padding:20px 24px;">
+    <p style="color:var(--grey-6);font-size:.88rem;margin-bottom:16px;line-height:1.7;">
+      Every active source is scanned automatically <strong>every {{ schedule_hours }} hours</strong>,
+      on the clock (00:00, {{ schedule_hours|stringformat:"02d" }}:00, … Asia/Amman). The schedule runs
+      inside the web server itself — there is no Celery worker or Redis to start.
+      {% if next_scan_at %}
+        <br>Next automatic scan: <strong>{{ next_scan_at|date:"D d M Y, H:i" }}</strong>
+        ({{ next_scan_at|timeuntil }} from now).
+      {% endif %}
+      {% if scan_running %}
+        <br><strong>A scan is running right now.</strong>
+      {% endif %}
+    </p>
+    <p style="color:var(--grey-6);font-size:.88rem;margin-bottom:16px;line-height:1.7;">
+      Use <strong>Run</strong> on a row above to scan one source immediately, or
+      <strong>Run All Scanners</strong> on the dashboard for every source. Only one
+      full scan runs at a time, so pressing it twice does not double up.
+      To change the interval, set <code>SCRAPER_SCHEDULE_HOURS</code> in
+      <code>tender_radar/settings.py</code> and restart the server.
+    </p>
+    <div style="background:var(--black);border:var(--border);border-radius:var(--radius);padding:16px 20px;font-family:monospace;font-size:.82rem;color:var(--green);line-height:2;">
+      <div><span style="color:var(--grey-5)"># Run from a terminal instead (no web server needed)</span></div>
+      <div>python manage.py run_scrapers</div>
+      <div>python manage.py run_scrapers --source JordanGTDScraper --dry-run</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function runScraper(sourceId, btn) {
+  const original = btn.innerHTML;
+  const restore = (label, delay) => {
+    if (label) btn.textContent = label;
+    setTimeout(() => { btn.disabled = false; btn.innerHTML = original; }, delay || 4000);
+  };
+  btn.disabled = true;
+  btn.textContent = '⟳ Starting...';
+  // Built from the named route rather than a hand-written "/scraper/run/…"
+  // string, so the button keeps working if the URL prefix ever changes.
+  fetch(`{% url 'tenders:trigger_scraper' 0 %}`.replace(/0\/$/, sourceId + '/'), {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() }
+  })
+  .then(r => {
+    if (r.status === 403) throw new Error('You do not have permission to start a scan.');
+    if (!r.ok) throw new Error(`The server refused the request (${r.status}).`);
+    return r.json();
+  })
+  .then(d => {
+    if (d && d.status === 'busy') {
+      showToast(d.message || 'A scan is already running.', 'success');
+      restore('⟳ Running');
+    } else {
+      showToast('Scan started — check the dashboard for results.', 'success');
+      restore('✓ Started');
+    }
+  })
+  .catch(e => {
+    showToast(e.message || 'Could not start the scan.', 'error');
+    btn.disabled = false;
+    btn.innerHTML = original;
+  });
+}
+</script>
+{% endblock %}

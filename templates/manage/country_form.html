@@ -1,0 +1,68 @@
+{# templates/manage/country_form.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{{ action }} — TenderRadar{% endblock %}
+{% block page_title %}{{ action }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_countries' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Countries</a>
+{% endblock %}
+
+{% block content %}
+{% include "manage/_form_styles.html" %}
+
+<div class="card mgmt-form">
+  <div class="card-header"><span class="card-title">{{ action }}</span></div>
+  <div style="padding:0;">
+    <form method="post">
+      {% csrf_token %}
+
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:16px;">
+        <div class="field-group">
+          <label>Code *</label>
+          {{ form.code }}
+          {% if form.code.errors %}<ul class="errorlist">{% for e in form.code.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+          <div class="helptext">2–3 uppercase letters</div>
+        </div>
+        <div class="field-group">
+          <label>Name (English) *</label>
+          {{ form.name_en }}
+        </div>
+        <div class="field-group">
+          <label>Name (Arabic) * — الاسم</label>
+          {{ form.name_ar }}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+        <div class="field-group">
+          <label>Flag Emoji</label>
+          {{ form.flag_emoji }}
+          <div class="helptext">Paste flag emoji, e.g. </div>
+        </div>
+        <div class="field-group">
+          <label>Currency</label>
+          {{ form.currency }}
+          <div class="helptext">e.g. JOD, SAR, AED</div>
+        </div>
+        <div class="field-group">
+          <label>Sort Order</label>
+          {{ form.sort_order }}
+          <div class="helptext">Lower = appears first</div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          {{ form.is_active }} Active (visible in filters and scraper runs)
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-gold"> {% icon 'save' %}Save Country</button>
+        <a href="{% url 'tenders:manage_countries' %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

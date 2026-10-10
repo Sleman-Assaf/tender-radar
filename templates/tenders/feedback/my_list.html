@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}My Feedback — TenderRadar{% endblock %}
+{% block page_title %} My Feedback{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:submit_feedback' %}" class="btn btn-gold btn-sm">{% icon 'arrow-left' %}New Feedback</a>
+{% endblock %}
+
+{% block content %}
+
+{% if feedbacks %}
+<div class="card">
+  <div class="card-header"><span class="card-title">{% icon 'inbox' %}My Submissions</span></div>
+  <div style="padding:0;">
+    {% for fb in feedbacks %}
+    <div id="fb-{{ fb.pk }}"
+         style="padding:16px 18px;border-bottom:1px solid #f5f5f5;
+                {% if fb.pk in unread_ids %}background:#fffef5;border-left:3px solid var(--yellow);{% endif %}
+                scroll-margin-top:70px;">
+
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+        {% if fb.pk in unread_ids %}
+        <span style="font-size:.68rem;font-weight:800;background:var(--yellow);color:#000;
+                     padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.06em;">
+          New Response
+        </span>
+        {% endif %}
+        <span style="font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:12px;
+          {% if fb.feedback_type == 'BUG' %}background:#fee;color:#c00;
+          {% elif fb.feedback_type == 'FEATURE' %}background:#e8f4fd;color:var(--info);
+          {% elif fb.feedback_type == 'CHANGE' %}background:#f0f9f0;color:#27ae60;
+          {% else %}background:#f5f5f5;color:#666;{% endif %}">
+          {{ fb.get_feedback_type_display }}
+        </span>
+        <span style="flex:1;font-weight:700;font-size:.88rem;color:#222;">{{ fb.title }}</span>
+        <span style="font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:12px;flex-shrink:0;
+          {% if fb.status == 'NEW' %}background:#fff8e0;color:#b8860b;
+          {% elif fb.status == 'IN_REVIEW' %}background:#e8f4fd;color:var(--info);
+          {% elif fb.status == 'PLANNED' %}background:#f0f0ff;color:#6644cc;
+          {% elif fb.status == 'DONE' %}background:#e8fdf0;color:#1a8840;
+          {% else %}background:#f5f5f5;color:#888;{% endif %}">
+          {{ fb.get_status_display }}
+        </span>
+        <span style="font-size:.72rem;color:#bbb;flex-shrink:0;">{{ fb.created_at|date:"d M Y" }}</span>
+      </div>
+
+      <div style="font-size:.8rem;color:#777;line-height:1.5;margin-bottom:{% if fb.attachment or fb.admin_note %}10px{% else %}0{% endif %};">
+        {{ fb.body|truncatechars:180 }}
+      </div>
+      {% if fb.attachment %}
+      <div style="margin-bottom:{% if fb.admin_note %}10px{% else %}0{% endif %};">
+        {% if fb.attachment.url|slice:"-4:" == ".png" or fb.attachment.url|slice:"-4:" == ".jpg" or fb.attachment.url|slice:"-5:" == ".jpeg" or fb.attachment.url|slice:"-4:" == ".gif" or fb.attachment.url|slice:"-5:" == ".webp" %}
+        <a href="{{ fb.attachment.url }}" target="_blank"
+           style="display:inline-block;border-radius:8px;overflow:hidden;border:1px solid #eee;">
+          <img src="{{ fb.attachment.url }}" alt="attachment"
+               style="max-height:120px;max-width:240px;display:block;object-fit:cover;">
+        </a>
+        {% else %}
+        <a href="{{ fb.attachment.url }}" target="_blank"
+           style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;
+                  background:#f5f5f5;border-radius:8px;text-decoration:none;font-size:.78rem;
+                  color:#444;border:1px solid #e0e0e0;">
+           {{ fb.attachment.name|slice:"21:" }}
+        </a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if fb.admin_note %}
+      <div style="padding:12px 14px;
+                  background:{% if fb.pk in unread_ids %}#fffde8{% else %}#f8f9fb{% endif %};
+                  border-left:3px solid var(--yellow);
+                  border-radius:0 8px 8px 0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;
+                       letter-spacing:.06em;color:#999;">Admin Response</span>
+          <span style="font-size:.68rem;color:#bbb;">· {{ fb.updated_at|date:"d M Y H:i" }}</span>
+        </div>
+        <div style="font-size:.84rem;color:#333;line-height:1.6;white-space:pre-wrap;">{{ fb.admin_note }}</div>
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% else %}
+<div class="card" style="text-align:center;padding:48px;">
+  <div style="font-size:2rem;margin-bottom:12px;"></div>
+  <div style="font-weight:700;font-size:.9rem;margin-bottom:8px;">No feedback submitted yet</div>
+  <div style="font-size:.82rem;color:#888;margin-bottom:16px;">Share your thoughts, report issues, or request features.</div>
+  <a href="{% url 'tenders:submit_feedback' %}" class="btn btn-primary">{% icon 'arrow-left' %}Submit Feedback</a>
+</div>
+{% endif %}
+
+<script>
+// Auto-scroll to unread response if URL has anchor
+if (window.location.hash) {
+  const el = document.querySelector(window.location.hash);
+  if (el) setTimeout(() => el.scrollIntoView({behavior:'smooth', block:'start'}), 300);
+}
+</script>
+{% endblock %}

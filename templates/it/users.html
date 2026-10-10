@@ -1,0 +1,139 @@
+{# templates/it/users.html — User Management #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Users — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · User Management{% endblock %}
+{% block page_title %}Users{% endblock %}
+{% block page_subtitle %}<p>Create, edit, activate and delete accounts; assign roles and departments.</p>{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:it_user_add' %}" class="btn btn-gold btn-sm">{% icon 'plus' %}Add User</a>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='users' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-filters">
+  <div class="it-seg">
+    <a href="?" class="{% if not status_filter %}active{% endif %}">All ({{ total_count }})</a>
+    <a href="?status=active"   class="{% if status_filter == 'active' %}active{% endif %}">Active ({{ active_count }})</a>
+    <a href="?status=inactive" class="{% if status_filter == 'inactive' %}active{% endif %}">Inactive ({{ inactive_count }})</a>
+  </div>
+
+  <form method="get" style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;">
+    {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+    <select name="role" onchange="this.form.submit()">
+      <option value="">All roles</option>
+      {% for code, label in roles %}
+      <option value="{{ code }}" {% if role_filter == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="company" onchange="this.form.submit()">
+      <option value="">All companies</option>
+      {% for c in companies %}
+      <option value="{{ c.pk }}" {% if company_filter == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="department" onchange="this.form.submit()">
+      <option value="">All departments</option>
+      <option value="none" {% if dept_filter == 'none' %}selected{% endif %}>— No department —</option>
+      {% for d in departments %}
+      <option value="{{ d.pk }}" {% if dept_filter == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}{% if d.company %} — {{ d.company.name }}{% endif %}</option>
+      {% endfor %}
+    </select>
+    <input type="search" name="q" value="{{ query }}" placeholder="Search name, username, e-mail…" style="min-width:220px;">
+    <button type="submit" class="btn btn-ghost btn-sm">{% icon 'filter' %}Filter</button>
+    {% if query or role_filter or dept_filter or company_filter or status_filter %}
+    <a href="{% url 'tenders:it_users' %}" class="btn btn-ghost btn-sm">{% icon 'x-circle' %}Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{{ rows|length }} user{{ rows|length|pluralize }}</span>
+  </div>
+  <div class="card-body">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>User</th><th>Role</th><th>Company</th><th>Department</th><th>Status</th><th>Feedback Alerts</th><th>Last Sign-in</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>
+            <div style="font-weight:700;">{{ r.user.get_full_name|default:r.user.username }}{% if r.is_self %} <span class="sm" style="color:var(--muted);font-weight:400;">(you)</span>{% endif %}</div>
+            <div style="font-size:.74rem;color:var(--muted);">{{ r.user.username }}{% if r.user.email %} · {{ r.user.email }}{% endif %}</div>
+          </td>
+          <td><span class="role-pill {{ r.role }}">{{ r.role_label }}</span></td>
+          <td>
+            {% if r.company %}{{ r.company.name }}{% else %}<span style="color:var(--muted-2);">—</span>{% endif %}
+          </td>
+          <td>
+            {% if r.department %}
+              <a href="{% url 'tenders:it_department_detail' r.department.pk %}" style="color:var(--ink);">{{ r.department.name }}</a>
+            {% else %}<span style="color:var(--muted-2);">—</span>{% endif %}
+          </td>
+          <td>
+            {% if r.user.is_active %}<span class="state-pill on">Active</span>
+            {% else %}<span class="state-pill off">Inactive</span>{% endif %}
+          </td>
+          <td>
+            <form method="post" action="{% url 'tenders:it_user_fb_alerts' r.user.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              {% if r.fb_alerts %}
+              <button type="submit" class="btn btn-sm"
+                style="background:#fffef0;color:#b8860b;border:1px solid #ffe88a;font-size:.72rem;"
+                title="This user receives an e-mail whenever any user submits feedback. Click to disable.">
+                {% icon 'bell' %}On
+              </button>
+              {% else %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="font-size:.72rem;color:var(--muted);"
+                title="Enable e-mail alerts to this user whenever any user submits feedback.">
+                {% icon 'bell-off' %}Off
+              </button>
+              {% endif %}
+            </form>
+          </td>
+          <td style="font-size:.78rem;color:var(--muted);">
+            {% if r.user.last_login %}{{ r.user.last_login|date:"d M Y, H:i" }}{% else %}Never{% endif %}
+          </td>
+          <td>
+            {% if r.editable %}
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <a href="{% url 'tenders:it_user_edit' r.user.pk %}" class="btn btn-outline btn-sm">{% icon 'edit' %}Edit</a>
+              <a href="{% url 'tenders:it_user_password' r.user.pk %}" class="btn btn-ghost btn-sm">{% icon 'lock' %}Password</a>
+              {% if not r.is_self %}
+              <form method="post" action="{% url 'tenders:it_user_toggle' r.user.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-ghost btn-sm">
+                  {% if r.user.is_active %}Deactivate{% else %}Activate{% endif %}
+                </button>
+              </form>
+              <form method="post" action="{% url 'tenders:it_user_delete' r.user.pk %}" style="display:inline;"
+                    onsubmit="return confirm('Permanently delete {{ r.user.username }}? This cannot be undone.')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' %}Delete</button>
+              </form>
+              {% endif %}
+            </div>
+            {% else %}
+            <span style="font-size:.74rem;color:var(--muted-2);">Super Admin — read only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted);">
+          No users match these filters.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

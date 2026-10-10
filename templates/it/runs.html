@@ -1,0 +1,148 @@
+{# templates/it/runs.html — Newspaper & News runs, one page #}
+{# Replaces the two separate run logs. Rows are interleaved by time, which is #}
+{# the point of merging them: what ran last is answered at a glance.          #}
+{% extends "base.html" %}
+{% load tender_extras %}
+
+{% block title %}Newspaper &amp; News Runs — TenderRadar | AJi{% endblock %}
+{% block eyebrow %}System Dashboard · Run History{% endblock %}
+{% block page_title %}Newspaper &amp; News Runs{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='feature_runs' %}{% include "it/_nav.html" %}{% endwith %}
+
+<style>
+.rn-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.rn-tab{padding:7px 15px;border:1px solid var(--line-2);background:var(--paper-2);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.rn-tab.on{background:var(--ink);border-color:var(--ink);color:var(--yellow)}
+.rn-row{border:1px solid var(--line);background:var(--paper-2);margin-bottom:10px}
+.rn-head{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:12px 16px}
+.rn-name{font-weight:700;font-size:.9rem;color:var(--ink);min-width:170px}
+.rn-kv{font-size:.71rem;color:var(--muted);line-height:1.5}
+.rn-kv b{color:var(--ink);font-weight:700}
+.rn-badge{display:inline-block;padding:2px 8px;font-size:.61rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.rn-SUCCESS,.rn-DONE{background:var(--ok);color:#fff}
+.rn-RUNNING,.rn-PROCESSING{background:var(--yellow);color:var(--ink)}
+.rn-FAILED{background:var(--bad);color:#fff}
+.rn-PENDING_PDFS,.rn-DISCOVERED,.rn-PENDING,.rn-DOWNLOADED,.rn-PARTIAL{background:var(--paper-3);color:var(--muted);border:1px solid var(--line-2)}
+.rn-kind{display:inline-block;padding:2px 7px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--paper-3);color:var(--muted);border:1px solid var(--line-2)}
+.rn-err{font-size:.69rem;color:var(--bad);padding:7px 16px;border-top:1px dashed var(--line);white-space:pre-wrap;word-break:break-word}
+</style>
+
+<div class="rn-tabs">
+  <a href="{% url 'tenders:it_runs' %}" class="rn-tab {% if not kind %}on{% endif %}">
+    {% icon 'list' 12 %} All ({{ total }})</a>
+  <a href="?kind=newspaper" class="rn-tab {% if kind == 'newspaper' %}on{% endif %}">
+    {% icon 'newspaper' 12 %} Newspaper ({{ counts.newspaper }})</a>
+  <a href="?kind=news" class="rn-tab {% if kind == 'news' %}on{% endif %}">
+    {% icon 'magazine' 12 %} News ({{ counts.news }})</a>
+</div>
+
+{% for r in rows %}
+<div class="rn-row">
+  <div class="rn-head">
+    <div class="rn-name">{% icon r.icon 13 %} {{ r.source }}
+      <div style="font-size:.67rem;color:var(--muted);font-weight:600;">{{ r.subtitle }}</div>
+    </div>
+    <span class="rn-kind">{{ r.kind_label }}</span>
+    <span class="rn-badge rn-{{ r.status }}">{{ r.status_label }}</span>
+    {% if r.trigger %}<span class="rn-kind">{{ r.trigger }}</span>{% endif %}
+    <div class="rn-kv">Found<br><b>{{ r.found }}</b></div>
+    <div class="rn-kv">Saved<br><b>{{ r.saved }}</b></div>
+    <div class="rn-kv">AEC<br><b>{{ r.aec }}</b></div>
+    <div class="rn-kv">Detail<br><b>{{ r.detail }}</b></div>
+    <div class="rn-kv">When<br><b>{{ r.when|date:"d M Y · H:i"|default:"—" }}</b></div>
+    <div style="flex:1;"></div>
+    {% if r.link %}
+    <a href="{{ r.link }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{% icon 'external' 12 %} Source</a>
+    {% endif %}
+    <button type="button" class="btn btn-black btn-sm"
+            onclick="retryRun('{{ r.retry_url }}', this)"
+            title="{{ r.retry_hint|default:'Run this again now' }}">{% icon 'refresh' 12 %} Retry</button>
+    {% if r.rescan_url %}
+    <button type="button" class="btn btn-ghost btn-sm"
+            onclick="retryRun('{{ r.rescan_url }}', this, true)"
+            title="Read this edition again through the AI, including the pages already done. Existing tenders are matched by fingerprint and updated in place rather than duplicated — they gain whatever is new, such as the ad photo.">{% icon 'image' 12 %} Rescan</button>
+    {% endif %}
+    {% if r.reset_url %}
+    <button type="button" class="btn btn-sm"
+            style="background:var(--bad);border-color:var(--bad);color:#fff;"
+            onclick="resetRun('{{ r.reset_url }}', this, '{{ r.source|escapejs }} {{ r.subtitle|escapejs }}', {{ r.reset_count }})"
+            title="Stop this run, delete every tender it produced, and queue all its pages again so Retry reads the edition from scratch">{% icon 'trash' 12 %} Reset</button>
+    {% endif %}
+  </div>
+  {% if r.error %}
+  <div class="rn-err">{% icon 'alert' 12 %} {{ r.error }}</div>
+  {% endif %}
+</div>
+{% empty %}
+<div class="card" style="text-align:center;padding:56px 20px;color:var(--muted);">
+  <div style="margin-bottom:12px;color:var(--muted-2);">{% icon 'history' 34 %}</div>
+  <div style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.82rem;margin-bottom:8px;">No runs yet</div>
+  <div style="font-size:.77rem;">Newspaper editions and news sweeps appear here once one has run — automatically on schedule, from the buttons on their pages, or with <code>manage.py run_magazines</code>.</div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// force=true is the newspaper RESCAN: the same endpoint, but with force=1 so
+// pages already marked DONE are reworked too. Confirmed first, because it costs
+// a full run's worth of AI calls.
+function retryRun(url, btn, force){
+  if (force && !confirm('Rescan this edition?\n\nIts pages go through the AI '
+      + 'again, including the ones already done. Existing tenders are matched '
+      + 'by fingerprint and updated in place, so they gain whatever is new \u2014 '
+      + 'the ad photo, usually. This takes as long as a normal run.')) return;
+  btn.disabled = true;
+  const opt = {method:'POST', headers:{'X-CSRFToken': getCsrf()}};
+  if (force) { const fd = new FormData(); fd.append('force', '1'); opt.body = fd; }
+  fetch(url, opt)
+    .then(r => r.json())
+    .then(d => {
+      // The two features answer with slightly different shapes; treat either
+      // "ok" or a "status" of started as success rather than guessing.
+      const ok = d.ok || d.status === 'started' || d.started;
+      // Prefer the endpoint's own message: it names the edition and says
+      // whether this was a retry or a full rescan. A generic string would hide
+      // "a job is already running", which is a real answer the user needs.
+      showToast(d.message || (ok ? 'Run started' : (d.error || 'Could not start')),
+                ok ? 'success' : 'error');
+      if (ok) { setTimeout(() => location.reload(), 2500); }
+      else { btn.disabled = false; }
+    })
+    .catch(() => { showToast('Error starting the run', 'error'); btn.disabled = false; });
+}
+
+// Reset is destructive: it deletes the tenders an edition produced. The confirm
+// names the edition and the exact count, so nobody discards work blind.
+function resetRun(url, btn, label, count){
+  const what = count
+    ? count + ' tender(s) extracted from ' + label + ' will be deleted'
+    : label + ' has no stored tenders to delete';
+  if (!confirm('Reset ' + label + '?\n\n' + what + ', their photos removed, and '
+      + 'every page queued again. The edition itself stays, so you can press '
+      + 'Retry afterwards to read it from scratch.\n\nThis cannot be undone.')) return;
+  btn.disabled = true;
+  fetch(url, {method:'POST', headers:{'X-CSRFToken': getCsrf()}})
+    .then(r => r.json())
+    .then(d => {
+      // 'stopping' is not a failure: a run was live, so the wipe waits for it
+      // to halt at the next page. Keep the button usable for the second press.
+      const ok = d.status === 'reset';
+      const stopping = d.status === 'stopping';
+      showToast(d.message || d.error || 'Could not reset',
+                ok ? 'success' : (stopping ? 'info' : 'error'));
+      // Reload after a 'stopping' answer too. The tender count in this
+      // button's confirm dialog is baked into the page when it renders, and
+      // a run still finishing a page keeps changing it - so the second,
+      // decisive press has to be made against a freshly rendered count
+      // rather than the stale literal this handler was built with.
+      if (ok || stopping) { setTimeout(() => location.reload(), 2500); }
+      else { btn.disabled = false; }
+    })
+    .catch(() => { showToast('Error resetting this edition', 'error'); btn.disabled = false; });
+}
+</script>
+{% endblock %}

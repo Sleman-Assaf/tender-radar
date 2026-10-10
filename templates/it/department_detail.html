@@ -1,0 +1,142 @@
+{# templates/it/department_detail.html — one department: head + employees #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{{ dept.name }} — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · Department Management{% endblock %}
+{% block page_title %}{{ dept.name }}{% endblock %}
+{% block page_subtitle %}
+<p>{% if dept.description %}{{ dept.description }}{% else %}{{ members|length }} employee{{ members|length|pluralize }}.{% endif %}</p>
+{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:it_departments' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Departments</a>
+<a href="{% url 'tenders:it_department_edit' dept.pk %}" class="btn btn-outline btn-sm">{% icon 'edit' %}Edit</a>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='departments' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-stats">
+  <div class="it-stat"><div class="lbl">Employees</div><div class="val">{{ members|length }}</div></div>
+  <div class="it-stat {% if not dept.head %}warn{% endif %}">
+    <div class="lbl">Department Head</div>
+    <div class="val" style="font-size:1.2rem;padding-top:10px;">
+      {% if dept.head %}{{ dept.head.get_full_name|default:dept.head.username }}{% else %}Not set{% endif %}
+    </div>
+    <div class="sub">{% if dept.head %}{{ dept.head.username }}{% else %}Nominate one below{% endif %}</div>
+  </div>
+  <div class="it-stat {% if not dept.company %}warn{% endif %}">
+    <div class="lbl">Company</div>
+    <div class="val" style="font-size:1.2rem;padding-top:10px;">{{ dept.company.name|default:"Not set" }}</div>
+    <div class="sub">{% if dept.company %}<a href="{% url 'tenders:it_companies' %}">All companies →</a>{% else %}<a href="{% url 'tenders:it_department_edit' dept.pk %}">Assign one →</a>{% endif %}</div>
+  </div>
+  <div class="it-stat"><div class="lbl">Code</div><div class="val" style="font-size:1.4rem;padding-top:8px;">{{ dept.code|default:"—" }}</div></div>
+  <div class="it-stat {% if dept.is_active %}ok{% endif %}">
+    <div class="lbl">Status</div>
+    <div class="val" style="font-size:1.2rem;padding-top:10px;">
+      {% if dept.is_active %}<span class="state-pill on">Active</span>{% else %}<span class="state-pill off">Inactive</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="it-cols">
+
+  {# ── Department head ─────────────────────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'user' %}Department Head</span></div>
+    <div class="card-pad">
+      <form method="post" action="{% url 'tenders:it_department_head' dept.pk %}">
+        {% csrf_token %}
+        <div class="field">
+          <label>Head</label>
+          <select name="head" class="form-control">
+            <option value="">— No head assigned —</option>
+            {% for u in head_form.fields.head.queryset %}
+            <option value="{{ u.pk }}" {% if u.pk == dept.head_id %}selected{% endif %}>
+              {{ u.get_full_name|default:u.username }} ({{ u.username }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-gold btn-sm">{% icon 'check' %}Set Head</button>
+        <p style="font-size:.76rem;color:var(--muted);margin-top:11px;line-height:1.6;">
+          The head is automatically moved into this department. Changing the head
+          does not change anyone's system role.
+        </p>
+      </form>
+    </div>
+  </div>
+
+  {# ── Add an employee ─────────────────────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'plus' %}Add an Employee</span></div>
+    <div class="card-pad">
+      <form method="post" action="{% url 'tenders:it_user_move' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="department" value="{{ dept.pk }}">
+        <div class="field">
+          <label>User</label>
+          <select name="user" class="form-control" required>
+            <option value="">— Select user —</option>
+            {% for u in addable %}
+            <option value="{{ u.pk }}">
+              {{ u.get_full_name|default:u.username }} ({{ u.username }}){% if u.profile.department %} — currently {{ u.profile.department.name }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-gold btn-sm">{% icon 'plus' %}Add to {{ dept.name }}</button>
+        <p style="font-size:.76rem;color:var(--muted);margin-top:11px;line-height:1.6;">
+          Moving a user here removes them from their previous department — an
+          employee belongs to exactly one.
+        </p>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+{# ── Employees ─────────────────────────────────────────────────────────────── #}
+<div class="sec-head"><h2>Employees — {{ members|length }}</h2></div>
+<div class="card">
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Move To</th></tr></thead>
+      <tbody>
+        {% for m in members %}
+        <tr>
+          <td>
+            <div style="font-weight:700;">
+              {{ m.user.get_full_name|default:m.user.username }}
+              {% if m.is_head %}<span class="state-pill on" style="margin-left:7px;">Head</span>{% endif %}
+            </div>
+            <div style="font-size:.74rem;color:var(--muted);">{{ m.user.username }}{% if m.user.email %} · {{ m.user.email }}{% endif %}</div>
+          </td>
+          <td><span class="role-pill {{ m.user.profile.role }}">{{ m.role_label }}</span></td>
+          <td>{% if m.user.is_active %}<span class="state-pill on">Active</span>{% else %}<span class="state-pill off">Inactive</span>{% endif %}</td>
+          <td>
+            <form method="post" action="{% url 'tenders:it_user_move' %}" style="display:flex;gap:7px;">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <input type="hidden" name="user" value="{{ m.user.pk }}">
+              <select name="department" style="flex:1;min-width:150px;background:var(--paper-2);border:1px solid var(--line-2);
+                                                padding:6px 9px;font-size:.78rem;font-family:var(--font);color:var(--ink);">
+                <option value="">— Remove from department —</option>
+                {% for d in other_depts %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}
+              </select>
+              <button type="submit" class="btn btn-ghost btn-sm">{% icon 'arrow-right' %}Move</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align:center;padding:36px;color:var(--muted);">
+          This department has no employees yet — add one above.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

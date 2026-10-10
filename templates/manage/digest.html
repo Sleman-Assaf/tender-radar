@@ -1,0 +1,279 @@
+{# Path: templates/manage/digest.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Daily Digest — TenderRadar{% endblock %}
+{% block eyebrow %}Superuser · Notifications{% endblock %}
+{% block page_title %}Daily Tender Digest{% endblock %}
+{% block page_subtitle %}
+<p>One aggregate HTML e-mail per user with the new tenders from their preferred countries,
+sent automatically every day at {{ cfg.digest_hour|stringformat:"02d" }}:00, covering the last 24 hours
+(on Sunday, the last 72 hours so the weekend is included).</p>
+{% endblock %}
+
+{% block content %}
+{% include "manage/_form_styles.html" %}
+
+{% if not graph_ready %}
+<div class="dg-warn">
+  {% icon 'alert' 16 %} Microsoft Graph e-mail is disabled or not fully configured —
+  digests cannot be delivered. Configure it in
+  <a href="{% url 'tenders:manage_integrations' %}">Integrations</a> first.
+</div>
+{% endif %}
+
+<div class="dg-grid">
+
+  {# ── Settings card ─────────────────────────────────────────────────── #}
+  <div class="dg-card">
+    <div class="dg-card-head">
+      <div class="dg-card-title">{% icon 'bell' 18 %} Digest Settings</div>
+      <span class="dg-badge {% if cfg.digest_enabled %}on{% else %}off{% endif %}">
+        {% if cfg.digest_enabled %}ENABLED{% else %}DISABLED{% endif %}
+      </span>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <label class="dg-toggle">
+        <input type="checkbox" name="digest_enabled" {% if cfg.digest_enabled %}checked{% endif %}>
+        <span class="dg-slider"></span>
+        <span class="dg-toggle-label">Send the digest automatically every day</span>
+      </label>
+
+      <div class="field-group">
+        <label>Send hour (server time)</label>
+        <input type="number" name="digest_hour" min="0" max="23" value="{{ cfg.digest_hour }}">
+        <div class="helptext">Default 9 → 09:00. After changing it, run
+          <code>python manage.py setup_schedule</code> once so Celery Beat picks up the new hour.</div>
+      </div>
+
+      <div class="field-group">
+        <label>TenderRadar base URL <span class="opt">— optional</span></label>
+        <input type="url" name="digest_site_url" value="{{ cfg.digest_site_url }}"
+               placeholder="https://tenders.ajigroup.com">
+        <div class="helptext">Adds "Open in TenderRadar" links to each tender in the e-mail.</div>
+      </div>
+
+      <div class="field-group">
+        <label>Default test recipient</label>
+        <input type="email" name="digest_test_email" value="{{ cfg.digest_test_email }}"
+               placeholder="Munaf_Dhuhairat@ajigroup.com">
+      </div>
+
+      <button type="submit" class="btn">{% icon 'save' 14 %} Save Settings</button>
+    </form>
+
+    <div class="dg-meta">
+      {% if cfg.digest_last_run_at %}
+        Last run: {{ cfg.digest_last_run_at|date:"Y-m-d H:i" }} UTC
+      {% else %}
+        Never run yet.
+      {% endif %}
+    </div>
+
+    {# ── Test ── #}
+    <div class="dg-test">
+      <div class="dg-sec-title">Test the digest</div>
+      <div class="dg-test-row">
+        <input type="email" id="dg_test_email" value="{{ cfg.digest_test_email }}"
+               placeholder="Munaf_Dhuhairat@ajigroup.com">
+        <button type="button" class="btn btn-ghost btn-sm" id="dg_test_btn"
+                data-url="{% url 'tenders:digest_send_test' %}">
+          {% icon 'signal' 14 %} Send Test
+        </button>
+      </div>
+      <div class="helptext">Sends a sample digest immediately (works even while the daily
+        digest is disabled). If the address belongs to a user, their real country
+        preferences are used; otherwise all active countries are aggregated.</div>
+    </div>
+
+    <div id="dg_out" class="intg-out"></div>
+  </div>
+
+  {# ── Users card ────────────────────────────────────────────────────── #}
+  <div class="dg-card">
+    <div class="dg-card-head">
+      <div class="dg-card-title">{% icon 'users' 18 %} Send Now</div>
+      <span class="dg-badge info">{{ eligible_count }} eligible user{{ eligible_count|pluralize }}</span>
+    </div>
+
+    <div class="dg-actions">
+      <button type="button" class="btn btn-sm" id="dg_send_all"
+              data-url="{% url 'tenders:digest_send_now' %}">
+        {% icon 'megaphone' 14 %} Send Now to All Users
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" id="dg_send_sel"
+              data-url="{% url 'tenders:digest_send_now' %}">
+        {% icon 'check' 14 %} Send to Selected (<span id="dg_sel_count">0</span>)
+      </button>
+    </div>
+
+    <table class="dg-table">
+      <thead>
+        <tr>
+          <th style="width:34px"><input type="checkbox" id="dg_check_all" title="Select all eligible"></th>
+          <th>User</th>
+          <th>E-mail</th>
+          <th>Preferred countries</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr class="{% if not u.eligible %}dg-dim{% endif %}">
+          <td>
+            <input type="checkbox" class="dg-user" value="{{ u.id }}"
+                   {% if not u.eligible %}disabled{% endif %}>
+          </td>
+          <td>
+            <strong>{{ u.username }}</strong>
+            {% if u.full_name %}<span class="dg-sub">{{ u.full_name }}</span>{% endif %}
+          </td>
+          <td>{% if u.email %}{{ u.email }}{% else %}<span class="dg-miss">no e-mail</span>{% endif %}</td>
+          <td>
+            {% if u.countries %}
+              {% for c in u.countries %}<span class="dg-cc">{{ c }}</span>{% endfor %}
+            {% else %}
+              <span class="dg-miss">none selected</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="helptext" style="margin-top:10px">Greyed-out users are skipped — they have no
+      e-mail address or no preferred countries in their profile. Users with countries but no
+      new tenders in the digest window (24 h; 72 h on Sunday) are counted as "no new tenders" and receive nothing.</div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const out  = document.getElementById('dg_out');
+
+  function show(ok, text) {
+    out.style.display = 'block';
+    out.className = 'intg-out ' + (ok ? 'ok' : 'err');
+    out.textContent = text;
+    out.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
+
+  function post(url, body, btn, busyLabel) {
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = busyLabel;
+    return fetch(url, {
+      method: 'POST',
+      headers: {'X-CSRFToken': csrf, 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams(body).toString(),
+    })
+      .then(r => r.json())
+      .then(d => {
+        let text = d.detail || (d.ok ? 'Done.' : 'Failed.');
+        if (d.lines && d.lines.length) { text += '\n\n' + d.lines.join('\n'); }
+        show(d.ok, text);
+      })
+      .catch(e => show(false, 'Request failed: ' + e))
+      .finally(() => { btn.disabled = false; btn.innerHTML = original; });
+  }
+
+  // Test
+  document.getElementById('dg_test_btn').addEventListener('click', function () {
+    const email = document.getElementById('dg_test_email').value.trim();
+    post(this.dataset.url, {email: email}, this, 'Sending…');
+  });
+
+  // Send to all
+  document.getElementById('dg_send_all').addEventListener('click', function () {
+    if (!confirm('Send the digest NOW to every eligible user?')) { return; }
+    post(this.dataset.url, {mode: 'all'}, this, 'Sending…');
+  });
+
+  // Selection handling
+  const boxes = Array.from(document.querySelectorAll('.dg-user:not(:disabled)'));
+  const selCount = document.getElementById('dg_sel_count');
+  function refreshCount() {
+    selCount.textContent = boxes.filter(b => b.checked).length;
+  }
+  boxes.forEach(b => b.addEventListener('change', refreshCount));
+  document.getElementById('dg_check_all').addEventListener('change', function () {
+    boxes.forEach(b => { b.checked = this.checked; });
+    refreshCount();
+  });
+
+  // Send to selected
+  document.getElementById('dg_send_sel').addEventListener('click', function () {
+    const ids = boxes.filter(b => b.checked).map(b => b.value);
+    if (!ids.length) { show(false, 'Select at least one user first.'); return; }
+    const body = new URLSearchParams({mode: 'selected'});
+    ids.forEach(id => body.append('user_ids', id));
+    const original = this.innerHTML, btn = this;
+    btn.disabled = true; btn.innerHTML = 'Sending…';
+    fetch(btn.dataset.url, {
+      method: 'POST',
+      headers: {'X-CSRFToken': csrf, 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: body.toString(),
+    })
+      .then(r => r.json())
+      .then(d => {
+        let text = d.detail || (d.ok ? 'Done.' : 'Failed.');
+        if (d.lines && d.lines.length) { text += '\n\n' + d.lines.join('\n'); }
+        show(d.ok, text);
+      })
+      .catch(e => show(false, 'Request failed: ' + e))
+      .finally(() => { btn.disabled = false; btn.innerHTML = original; });
+  });
+})();
+</script>
+
+<style>
+  .dg-grid{display:grid;grid-template-columns:400px 1fr;gap:22px;align-items:start}
+  @media(max-width:980px){.dg-grid{grid-template-columns:1fr}}
+  .dg-card{border:1px solid var(--line-2);background:var(--paper-2);padding:22px 24px}
+  .dg-card-head{display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--line-2)}
+  .dg-card-title{display:flex;align-items:center;gap:9px;font-weight:700;font-size:.95rem}
+  .dg-badge{font-size:.68rem;font-weight:800;letter-spacing:.6px;padding:3px 10px;border-radius:11px}
+  .dg-badge.on{background:#e7f6ec;color:#1a7f37}
+  .dg-badge.off{background:#f3f4f6;color:#6b7280}
+  .dg-badge.info{background:#eef4ff;color:#2456a6}
+  .dg-warn{display:flex;align-items:center;gap:9px;padding:12px 16px;margin-bottom:18px;
+    background:#fdeeee;border:1px solid #f2c4c0;color:#b42318;font-size:.85rem}
+  .dg-warn a{color:#b42318;font-weight:700}
+
+  /* toggle */
+  .dg-toggle{display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:18px;
+    text-transform:none;letter-spacing:0;font-weight:400}
+  .dg-toggle input{display:none}
+  .dg-slider{width:42px;height:23px;background:#cfd4da;border-radius:12px;position:relative;
+    flex-shrink:0;transition:background .18s}
+  .dg-slider::after{content:'';position:absolute;top:2.5px;left:3px;width:18px;height:18px;
+    background:#fff;border-radius:50%;transition:left .18s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+  .dg-toggle input:checked + .dg-slider{background:#1a7f37}
+  .dg-toggle input:checked + .dg-slider::after{left:21px}
+  .dg-toggle-label{font-size:.88rem;color:var(--ink)}
+
+  .dg-meta{margin-top:14px;font-size:.75rem;color:var(--muted)}
+  .dg-sec-title{font-weight:700;font-size:.82rem;letter-spacing:.4px;text-transform:uppercase;
+    margin:20px 0 10px;padding-top:16px;border-top:1px solid var(--line-2)}
+  .dg-test-row{display:flex;gap:10px;align-items:center}
+  .dg-test-row input{flex:1}
+
+  .dg-actions{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .dg-table{width:100%;border-collapse:collapse;font-size:.83rem}
+  .dg-table th{text-align:left;font-size:.68rem;letter-spacing:.6px;text-transform:uppercase;
+    color:var(--muted);padding:8px 10px;border-bottom:2px solid var(--line-2)}
+  .dg-table td{padding:9px 10px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  .dg-dim{opacity:.45}
+  .dg-sub{display:block;font-size:.72rem;color:var(--muted)}
+  .dg-miss{color:#b42318;font-size:.76rem;font-style:italic}
+  .dg-cc{display:inline-block;padding:1px 8px;margin:1px 3px 1px 0;border-radius:9px;
+    background:var(--paper-3);border:1px solid var(--line-2);font-size:.7rem;font-weight:700}
+  .intg-out{display:none;margin-top:16px;padding:12px 15px;font-size:.8rem;
+    white-space:pre-wrap;word-break:break-word}
+  .intg-out.ok{background:#e7f6ec;border:1px solid #b7e2c3;color:#14532d}
+  .intg-out.err{background:#fdeeee;border:1px solid #f2c4c0;color:#7f1d1d}
+</style>
+{% endblock %}

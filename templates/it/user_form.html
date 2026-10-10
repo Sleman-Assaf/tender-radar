@@ -1,0 +1,77 @@
+{# templates/it/user_form.html — create / edit a user #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{{ action }} — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · User Management{% endblock %}
+{% block page_title %}{{ action }}{% endblock %}
+{% block page_subtitle %}
+<p>{% if target_user %}Editing <b>{{ target_user.username }}</b>.{% else %}Create an account and give it a role, a company and a department.{% endif %}</p>
+{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:it_users' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Users</a>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% include "manage/_form_styles.html" %}
+{% with it_section='users' %}{% include "it/_nav.html" %}{% endwith %}
+
+<form method="post" class="card mgmt-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg-error">{{ form.non_field_errors }}</div>{% endif %}
+
+  {% for field in form %}
+  <div class="field-group">
+    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}
+    {{ field.errors }}
+  </div>
+  {% endfor %}
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-gold">{% icon 'save' %}{{ action }}</button>
+    <a href="{% url 'tenders:it_users' %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+  </div>
+</form>
+
+{% if target_user %}
+<div style="max-width:680px;">
+  <div class="it-note" style="margin-top:24px;">
+    Leave both password boxes empty to keep the current password.
+    To set a new one without touching anything else, use
+    <a href="{% url 'tenders:it_user_password' target_user.pk %}">Reset password</a>.
+  </div>
+</div>
+{% endif %}
+
+{{ form.department_company_map|json_script:"dept-map" }}
+<script>
+(function () {
+  /* Company → Department cascade. Picking a company hides departments that
+     belong to other companies; the server enforces the same rule in
+     ITUserForm.clean(), so this is a convenience, not the guard. */
+  var company = document.getElementById('id_company');
+  var dept    = document.getElementById('id_department');
+  var mapEl   = document.getElementById('dept-map');
+  if (!company || !dept || !mapEl) { return; }
+  var map = JSON.parse(mapEl.textContent);
+
+  function filter() {
+    var picked = company.value;
+    Array.prototype.forEach.call(dept.options, function (opt) {
+      if (!opt.value) { return; }                       // "— No department —"
+      var visible = !picked || map[opt.value] === picked;
+      opt.hidden = !visible;
+      opt.disabled = !visible;
+    });
+    var current = dept.options[dept.selectedIndex];
+    if (current && current.value && current.disabled) { dept.value = ''; }
+  }
+
+  company.addEventListener('change', filter);
+  filter();
+})();
+</script>
+{% endblock %}

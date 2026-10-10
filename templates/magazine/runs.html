@@ -1,0 +1,104 @@
+{# templates/magazine/runs.html — Magazine Runs log (System Dashboard) #}
+{# Run history of the magazine sweeps: one card per run with its counts and    #}
+{# any error — the magazine equivalent of Scraper Runs and Newspaper Runs.     #}
+{% extends "base.html" %}
+{% load tender_extras %}
+
+{% block title %}Magazine Runs — TenderRadar | AJi{% endblock %}
+{% block eyebrow %}System Dashboard · Magazine Tenders{% endblock %}
+{% block page_title %}Magazine Runs{% endblock %}
+
+{% block page_actions %}
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+  {% if next_run %}
+  <div style="text-align:right;line-height:1.35;">
+    <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Next automatic run</div>
+    <div style="font-size:.78rem;color:var(--ink);font-weight:600;">{{ next_run|date:"d M Y · H:i" }}</div>
+  </div>
+  {% endif %}
+  <button type="button" class="btn btn-black" onclick="runMagazineCheck(this)">{% icon 'refresh' 14 %} Check Magazines Now</button>
+</div>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='magazine_runs' %}{% include "it/_nav.html" %}{% endwith %}
+
+<style>
+.mg-run{border:1px solid var(--line);background:var(--paper-2);margin-bottom:14px}
+.mg-run-head{display:flex;flex-wrap:wrap;gap:18px;align-items:center;padding:13px 16px}
+.mg-run-name{font-weight:700;font-size:.95rem;color:var(--ink);min-width:150px}
+.mg-kv{font-size:.72rem;color:var(--muted);line-height:1.5}
+.mg-kv b{color:var(--ink);font-weight:700}
+.mg-badge{display:inline-block;padding:2px 8px;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.mg-SUCCESS{background:var(--ok);color:#fff}
+.mg-RUNNING{background:var(--yellow);color:var(--ink)}
+.mg-FAILED{background:var(--bad);color:#fff}
+.mg-trigger{display:inline-block;padding:2px 7px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--paper-3);color:var(--muted);border:1px solid var(--line-2)}
+.mg-error{font-size:.7rem;color:var(--bad);padding:8px 16px;border-top:1px dashed var(--line);white-space:pre-wrap;word-break:break-word}
+</style>
+
+{% for r in runs %}
+<div class="mg-run">
+  <div class="mg-run-head">
+    <div class="mg-run-name">{% icon 'magazine' 13 %} {{ r.magazine_display_en }}
+      <div style="font-size:.68rem;color:var(--muted);font-weight:600;">{{ r.started_at|date:"d M Y · H:i" }}</div>
+    </div>
+    <span class="mg-badge mg-{{ r.status }}">{{ r.get_status_display }}</span>
+    <span class="mg-trigger">{{ r.get_trigger_display }}</span>
+    <div class="mg-kv">Found<br><b>{{ r.found }}</b></div>
+    <div class="mg-kv">Saved<br><b>{{ r.saved_new }} new · {{ r.saved_updated }} updated</b></div>
+    <div class="mg-kv">Skipped<br><b>{{ r.skipped }}</b></div>
+    <div class="mg-kv">Classified<br><b>{{ r.aec }} AEC · {{ r.non_aec }} non-AEC</b></div>
+    <div class="mg-kv">Duration<br><b>{% if r.duration_seconds %}{{ r.duration_seconds|floatformat:1 }}s{% else %}—{% endif %}</b></div>
+    <div style="flex:1;"></div>
+    <button type="button" class="btn btn-black btn-sm" onclick="retryMagazineRun({{ r.pk }}, this)" title="Run this magazine again now">{% icon 'refresh' 12 %} Retry</button>
+  </div>
+  {% if r.error_message %}
+  <div class="mg-error">{% icon 'alert' 12 %} {{ r.error_message }}</div>
+  {% endif %}
+</div>
+{% empty %}
+<div class="card" style="text-align:center;padding:60px 20px;color:var(--muted);">
+  <div style="margin-bottom:12px;color:var(--muted-2);">{% icon 'history' 34 %}</div>
+  <div style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.84rem;margin-bottom:8px;">No magazine runs yet</div>
+  <div style="font-size:.78rem;">Runs appear here once a sweep has been triggered — automatically on schedule, from the button above, or with <code>manage.py run_magazines</code>.</div>
+</div>
+{% endfor %}
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}" class="page-link">‹</a>{% endif %}
+  <span class="page-link current">{{ page_obj.number }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}" class="page-link">›</a>{% endif %}
+  <span class="muted" style="font-size:.72rem;margin-left:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} runs
+  </span>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function runMagazineCheck(btn){
+  btn.disabled = true;
+  fetch("{% url 'magazine_tenders:run' %}", {method:'POST', headers:{'X-CSRFToken': getCsrf()}})
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) { showToast('Magazine sweep started', 'success'); setTimeout(() => location.reload(), 2500); }
+      else { showToast(d.error || 'Could not start the sweep', d.busy ? 'success' : 'error'); btn.disabled = false; }
+    })
+    .catch(() => { showToast('Error starting the sweep', 'error'); btn.disabled = false; });
+}
+function retryMagazineRun(pk, btn){
+  btn.disabled = true;
+  fetch(`/magazine-tenders/runs/${pk}/retry/`, {method:'POST', headers:{'X-CSRFToken': getCsrf()}})
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) { showToast(`Re-running ${d.magazine}…`, 'success'); setTimeout(() => location.reload(), 2500); }
+      else { showToast(d.error || 'Could not start the run', d.busy ? 'success' : 'error'); btn.disabled = false; }
+    })
+    .catch(() => { showToast('Error starting the run', 'error'); btn.disabled = false; });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,45 @@
+{# templates/tenders/scrape_logs.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Scrape Logs — TenderRadar{% endblock %}
+{% block eyebrow %}System · Activity{% endblock %}
+{% block page_title %}Scrape Logs{% endblock %}
+{% block page_subtitle %}<p>Recent scraper runs across all sources — status, counts and duration.</p>{% endblock %}
+{% block page_actions %}
+{% if last_scrape %}<span class="pill mut">Last run · {{ last_scrape.started_at|timesince }} ago</span>{% endif %}
+<button class="btn btn-black btn-sm" onclick="triggerAllScrapers(this)">{% icon 'play' 14 %} Run All</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <table class="data-table">
+    <thead>
+      <tr><th>Source</th><th>Status</th><th>Found</th><th>New</th><th>Updated</th><th>Started</th><th>Duration</th></tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td style="font-weight:600;">{{ log.source.name|truncatechars:40 }}</td>
+        <td>
+          {% if log.status == 'SUCCESS' %}<span class="badge badge-open">Success</span>
+          {% elif log.status == 'FAILED' %}<span class="badge badge-cancel">{% icon 'x' 12 %} Failed</span>
+          {% elif log.status == 'RUNNING' %}<span class="badge badge-award">{% icon 'refresh' 12 %} Running</span>
+          {% else %}<span class="badge badge-closed">{{ log.status }}</span>{% endif %}
+        </td>
+        <td class="num">{{ log.tenders_found }}</td>
+        <td class="num" style="font-weight:700;">{{ log.tenders_new }}</td>
+        <td class="num">{{ log.tenders_updated }}</td>
+        <td style="font-size:.78rem;color:var(--muted);">{{ log.started_at|date:"d M Y H:i" }} · {{ log.started_at|timesince }} ago</td>
+        <td style="font-size:.78rem;color:var(--muted);">{% if log.duration_seconds %}{{ log.duration_seconds }}s{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="text-align:center;padding:48px;color:var(--muted);">
+        <div style="margin-bottom:10px;color:var(--muted-2);">{% icon 'refresh' 32 %}</div>
+        <div style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;">No scrape logs yet</div>
+        <div style="font-size:.78rem;margin-top:4px;">Run a scraper to see activity here.</div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

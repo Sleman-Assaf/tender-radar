@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Historical Projects — TenderRadar{% endblock %}
+{% block page_title %}Historical Projects{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'bd:cv_list' %}" class="btn btn-ghost btn-sm">{% icon 'cv' %}CV Pool</a>
+<a href="{% url 'bd:project_create' %}" class="btn btn-black btn-sm">{% icon 'plus' %}Add Project</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:18px;">
+  <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;padding:16px 18px;">
+    <div style="flex:1;min-width:220px;">
+      <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;">Search</div>
+      <input type="text" name="q" value="{{ f.q }}" placeholder="Project, client, keyword…"
+             style="width:100%;padding:8px 10px;border:1px solid #ddd;font-family:inherit;">
+    </div>
+    <div>
+      <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;">Sector</div>
+      <select name="sector" style="padding:8px 10px;border:1px solid #ddd;font-family:inherit;">
+        <option value="">All</option>
+        {% for code,label in sectors %}<option value="{{ code }}" {% if f.sector == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;">Country</div>
+      <select name="country" style="padding:8px 10px;border:1px solid #ddd;font-family:inherit;">
+        <option value="">All</option>
+        {% for c in countries %}<option value="{{ c }}" {% if f.country == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;">Status</div>
+      <select name="status" style="padding:8px 10px;border:1px solid #ddd;font-family:inherit;">
+        <option value="">All</option>
+        {% for code,label in statuses %}<option value="{{ code }}" {% if f.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-black btn-sm">{% icon 'filter' %}Filter</button>
+    <a href="{% url 'bd:project_list' %}" class="btn btn-ghost btn-sm">{% icon 'refresh' %}Reset</a>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'project' %}Project Pool</span>
+    <span style="font-size:.76rem;color:#aaa;margin-left:12px;">{{ total }} projects</span>
+  </div>
+  <div style="padding:0;">
+    <div style="display:grid;grid-template-columns:1fr 180px 140px 110px 110px 90px;gap:0 14px;
+                padding:10px 18px;background:#f8f9fb;border-bottom:2px solid var(--yellow);
+                font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#888;">
+      <div>Project / Client</div><div>Sector</div><div>Location</div><div>Period</div><div>Status</div><div>Docs</div>
+    </div>
+    {% for p in page %}
+    <div style="display:grid;grid-template-columns:1fr 180px 140px 110px 110px 90px;gap:0 14px;
+                padding:12px 18px;border-bottom:1px solid #f5f5f5;align-items:center;"
+         onmouseover="this.style.background='#fafbff'" onmouseout="this.style.background=''">
+      <div>
+        <a href="{% url 'bd:project_detail' p.pk %}" style="font-weight:700;font-size:.86rem;color:var(--ink);">{{ p.name|truncatechars:60 }}</a>
+        <div style="font-size:.74rem;color:#aaa;">{{ p.client|truncatechars:56|default:"—" }}</div>
+      </div>
+      <div style="font-size:.76rem;color:#555;">{{ p.get_sector_display }}</div>
+      <div style="font-size:.76rem;color:#555;">{{ p.city }}{% if p.city and p.country %}, {% endif %}{{ p.country }}</div>
+      <div style="font-size:.76rem;color:#555;">{{ p.period_display }}</div>
+      <div><span style="font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px;
+            {% if p.status == 'COMPLETED' %}background:#e8fdf0;color:#1a8840;border:1px solid #b8edc8;
+            {% elif p.status == 'ONGOING' %}background:#e8f4fd;color:var(--info);border:1px solid #c0d8f8;
+            {% else %}background:#f5f5f5;color:#888;border:1px solid #e5e5e5;{% endif %}">
+        {{ p.get_status_display }}</span></div>
+      <div style="font-size:.78rem;color:#777;">{{ p.documents.count }}</div>
+    </div>
+    {% empty %}
+    <div style="text-align:center;padding:48px;color:#aaa;">
+      No projects match. Seed the pool with:<br>
+      <code style="font-size:.78rem;">python manage.py seed_projects --file Projects_List_new.xlsx</code>
+    </div>
+    {% endfor %}
+  </div>
+  {% if page.has_other_pages %}
+  <div style="display:flex;gap:8px;justify-content:center;padding:14px;">
+    {% if page.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page.previous_page_number }}&q={{ f.q }}&sector={{ f.sector }}&country={{ f.country }}&status={{ f.status }}">{% icon 'arrow-left' %}Prev</a>{% endif %}
+    <span style="font-size:.8rem;color:#888;align-self:center;">Page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page.next_page_number }}&q={{ f.q }}&sector={{ f.sector }}&country={{ f.country }}&status={{ f.status }}">{% icon 'arrow-right' %}Next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

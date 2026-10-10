@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Upload CV — TenderRadar{% endblock %}
+{% block page_title %}Upload CV{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'bd:cv_list' %}" class="btn btn-ghost btn-sm">{% icon 'cv' %}CV Pool</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:640px;margin:0 auto;">
+  <div class="card-header"><span class="card-title">{% icon 'upload' %}Upload any CV</span></div>
+  <form method="post" enctype="multipart/form-data" style="padding:22px;">
+    {% csrf_token %}
+    <p style="font-size:.85rem;color:#666;line-height:1.6;margin-bottom:16px;">
+      Upload a CV in <strong>.docx</strong> or <strong>.pdf</strong> (English, text-based).
+      AJiAI will read it and pre-fill the AJi CV template fields for your review —
+      you can then <strong>save it to the pool</strong>, <strong>download it formatted</strong>
+      in the standard template, or both.
+    </p>
+    <input type="file" name="cv_file" accept=".docx,.pdf,.txt" required
+           style="width:100%;padding:14px;border:2px dashed #ddd;background:#fafafa;font-family:inherit;">
+    <div style="font-size:.72rem;color:#aaa;margin-top:6px;">Max 20 MB · Scanned PDFs without text cannot be parsed.</div>
+    <div style="margin-top:18px;display:flex;gap:10px;">
+      <button type="submit" class="btn btn-black">{% icon 'ai' %}Upload &amp; Analyse with AJiAI</button>
+      <a href="{% url 'bd:cv_list' %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

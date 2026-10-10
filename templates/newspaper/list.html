@@ -1,0 +1,335 @@
+{# templates/newspaper/list.html — عطاءات الجريدة #}
+{# Same design system + tender-card structure as tenders/list.html; the      #}
+{# Source/Country columns are replaced by newspaper provenance (edition/page) #}
+{% extends "base.html" %}
+{% load tender_extras %}
+
+{% block title %}{% if non_aec_mode %}Non-AEC Newspaper Tenders{% else %}Newspaper Tenders{% endif %} — TenderRadar | AJi{% endblock %}
+{% block eyebrow %}{% if non_aec_mode %}System Dashboard · Audit{% else %}Daily Newspapers · Al-Rai, Al-Ghad, Ad-Dustour{% endif %}{% endblock %}
+{% block page_title %}{% if non_aec_mode %}Non-AEC Newspaper Tenders{% else %}Newspaper Tenders{% endif %}{% endblock %}
+
+{% block page_actions %}
+{% if not non_aec_mode %}
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+  {% if last_scan %}
+  <div style="text-align:right;line-height:1.35;">
+    <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Last scan</div>
+    <div style="font-size:.78rem;color:var(--ink);font-weight:600;">{{ last_scan.updated_at|date:"d M Y · H:i" }}</div>
+    <div style="font-size:.66rem;color:var(--muted-2);">Edition {{ last_scan.edition_date|date:"d M" }} ·
+      {% if last_scan.status == 'DONE' %}<span style="color:var(--ok);font-weight:700;">Done</span>
+      {% elif last_scan.status == 'PENDING_PDFS' %}<span style="color:var(--muted);font-weight:700;">Waiting for PDFs</span>
+      {% elif last_scan.status == 'PROCESSING' %}<span style="color:var(--yellow-deep);font-weight:700;">Processing…</span>
+      {% elif last_scan.status == 'FAILED' %}<span style="color:var(--bad);font-weight:700;">Failed</span>
+      {% else %}{{ last_scan.get_status_display }}{% endif %}</div>
+  </div>
+  {% endif %}
+  {% if next_run %}
+  <div style="text-align:right;line-height:1.35;">
+    <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Next automatic run</div>
+    <div style="font-size:.78rem;color:var(--ink);font-weight:600;">{{ next_run|date:"d M Y · H:i" }}</div>
+  </div>
+  {% endif %}
+  <button type="button" id="np-run-btn" class="btn btn-black" onclick="runNewspaperCheck(this)">{% icon 'refresh' 14 %} Check Today's Edition</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if non_aec_mode %}
+{% include "it/_styles.html" %}
+{% with it_section='newspaper_non_aec' %}{% include "it/_nav.html" %}{% endwith %}
+{% endif %}
+
+<div class="card mb-4" style="border-top:3px solid var(--yellow);overflow:visible;">
+  <form method="get" id="filter-form" style="padding:16px 18px 12px;">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+      <div style="flex:3;min-width:220px;">
+        <div class="tc-label">Search — EN / AR</div>
+        <input type="text" name="q" value="{{ active_filters.q }}" placeholder="Title, reference, entity… (English or Arabic)" class="form-control"/>
+      </div>
+
+      <div style="min-width:150px;">
+        <div class="tc-label">Category</div>
+        <select name="category" class="form-control">
+          <option value="">All Categories</option>
+          {% for code, label in categories %}
+          <option value="{{ code }}" {% if code in active_filters.category %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="min-width:130px;">
+        <div class="tc-label">Status</div>
+        <select name="status" class="form-control">
+          <option value="">All Statuses</option>
+          {% for code, label in statuses %}
+          <option value="{{ code }}" {% if active_filters.status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="min-width:130px;">
+        <div class="tc-label">Newspaper</div>
+        <select name="newspaper" class="form-control">
+          <option value="">All Papers</option>
+          {% for code, label in newspapers %}
+          <option value="{{ code }}" {% if active_filters.newspaper == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="min-width:160px;">
+        <div class="tc-label">Edition Date</div>
+        <select name="edition" class="form-control">
+          <option value="">All Editions</option>
+          {% for e in editions %}
+          <option value="{{ e.edition_date|date:'Y-m-d' }}|{{ e.source }}" {% if active_filters.edition == e.edition_date|date:'Y-m-d'|add:'|'|add:e.source %}selected{% endif %}>{{ e.edition_date|date:"d M Y" }} — {{ e.source_display_en }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-black">{% icon 'search' %}Search</button>
+      <a href="{% url 'newspaper_tenders:list' %}" class="btn btn-ghost">{% icon 'x-circle' %}Clear</a>
+    </div>
+  </form>
+</div>
+
+{% if active_filters.q or active_filters.category or active_filters.status or active_filters.edition %}
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+  <span class="badge" style="background:var(--ink);color:var(--yellow);font-weight:700;">{{ page_obj.paginator.count }} matching tender{{ page_obj.paginator.count|pluralize }}</span>
+  <span class="tc-label" style="margin:0;">Active:</span>
+  {% if active_filters.q %}<span class="badge badge-award">Search: "{{ active_filters.q }}"</span>{% endif %}
+  {% for cat in active_filters.category %}<span class="badge badge-cat">{{ cat }}</span>{% endfor %}
+  {% if active_filters.status %}<span class="badge badge-open">{{ active_filters.status }}</span>{% endif %}
+  {% if active_filters.edition %}<span class="badge badge-open">Edition {{ active_filters.edition }}</span>{% endif %}
+</div>
+{% endif %}
+
+<style>
+.tender-card{border:none;border-bottom:1px solid var(--line);padding:14px 18px 14px 16px;display:grid;grid-template-columns:44px 1fr 110px 130px 150px 100px 120px 76px 96px;gap:0 12px;align-items:start;transition:background .13s;background:var(--paper-2)}
+.tender-card:hover{background:var(--paper)}
+.tender-card:last-child{border-bottom:none}
+.tender-card.row-urgent{box-shadow:inset 3px 0 0 var(--bad)}
+.tender-card.row-expiring{box-shadow:inset 3px 0 0 var(--ink-2)}
+.tender-card.row-new{box-shadow:inset 3px 0 0 var(--yellow)}
+.tc-head{display:grid;grid-template-columns:44px 1fr 110px 130px 150px 100px 120px 76px 96px;gap:0 12px;padding:10px 18px 8px 16px;background:var(--paper-2);border-bottom:1px solid var(--ink);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.tender-title-en{font-weight:700;font-size:.86rem;color:var(--ink);line-height:1.4;display:block;text-decoration:none;word-break:break-word}
+.tender-title-en:hover{box-shadow:inset 0 -2px 0 var(--yellow)}
+.tender-title-ar{font-family:var(--font-ar);font-size:.8rem;color:var(--muted);direction:rtl;text-align:right;line-height:1.5;margin-top:5px;padding-top:5px;border-top:1px dashed var(--line);display:block;word-break:break-word}
+.tc-meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center}
+.tc-actions{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:2px}
+.tc-col{font-size:.78rem;color:var(--muted);line-height:1.4}
+.tc-label{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px}
+.vote-btn{border:1px solid var(--line-2);background:var(--paper-3);color:var(--muted);cursor:pointer;font-size:.72rem;padding:2px 6px;width:34px}
+.vote-btn.up-on{background:var(--ok);border-color:var(--ok);color:#fff}
+.vote-btn.down-on{background:var(--bad);border-color:var(--bad);color:#fff}
+.adphoto-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:1000;padding:30px}
+.adphoto-overlay.open{display:flex}
+.adphoto-box{position:relative;background:var(--paper);padding:10px;max-width:90vw;max-height:90vh;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.adphoto-scroll{overflow:auto;max-width:88vw;max-height:80vh}
+.adphoto-box img{display:block;max-width:86vw;max-height:76vh;width:auto;height:auto}
+.adphoto-controls{display:flex;gap:6px;justify-content:center;padding:8px 0 2px}
+.adphoto-zbtn{width:40px;height:30px;background:var(--ink);color:var(--yellow);border:none;font-size:1rem;font-weight:900;cursor:pointer}
+.adphoto-zbtn.rst{width:auto;padding:0 12px;font-size:.68rem;letter-spacing:.06em}
+.adphoto-close{position:absolute;top:-14px;right:-14px;width:34px;height:34px;border-radius:50%;background:var(--yellow);color:var(--ink);border:2px solid var(--ink);font-size:1.1rem;font-weight:900;cursor:pointer;line-height:1}
+/* Small screens: the 9-column grid is wider than the viewport and the parent
+   .card clips it — stack the columns instead (each has its own label). */
+@media (max-width:900px){
+  .tc-head{display:none}
+  .tender-card{display:block}
+  .tc-actions{flex-direction:row;margin-bottom:8px}
+  .tender-card > div{margin-bottom:10px}
+  .tender-card > div:last-child{margin-bottom:0;flex-direction:row !important}
+}
+</style>
+
+<div class="card" style="overflow:hidden;">
+  <div class="tc-head">
+    <div></div><div>Title</div><div>Ad Photo</div><div>Edition</div><div>Entity</div><div>Deadline</div><div>Category</div><div>Status</div><div></div>
+  </div>
+
+  {% for t in tenders %}
+  <div class="tender-card {% if t.is_new %}row-new{% endif %} {% if t.days_remaining is not None and t.days_remaining >= 0 and t.days_remaining <= 3 %}row-urgent{% elif t.days_remaining is not None and t.days_remaining > 3 and t.days_remaining <= 7 %}row-expiring{% endif %}">
+
+    <div class="tc-actions">
+      {% if t.is_aec %}
+      <button onclick="listAECFeedback({{ t.pk }}, 'UP', this)" id="aec-up-{{ t.pk }}" title="Accurate AEC" class="vote-btn {% if t.user_aec_vote == 'UP' %}up-on{% endif %}">{% icon 'thumbs-up' 15 %}</button>
+      {% endif %}
+      <button onclick="toggleBookmark({{ t.pk }}, this)" style="background:none;border:none;cursor:pointer;font-size:1.15rem;line-height:1;color:{% if t.is_bookmarked %}var(--yellow-deep){% else %}var(--grey-3){% endif %};" title="{% if t.is_bookmarked %}Remove bookmark{% else %}Bookmark{% endif %}">{% icon 'bookmark' 17 %}</button>
+      {% if t.is_aec %}
+      <button onclick="listAECFeedback({{ t.pk }}, 'DOWN', this)" id="aec-down-{{ t.pk }}" title="Not AEC" class="vote-btn {% if t.user_aec_vote == 'DOWN' %}down-on{% endif %}">{% icon 'thumbs-down' 15 %}</button>
+      {% endif %}
+    </div>
+
+    <div>
+      <a href="{% url 'tenders:detail' t.pk %}" class="tender-title-en">{{ t.title }}</a>
+      {% if t.title_ar and t.title_ar != t.title %}<span class="tender-title-ar">{{ t.title_ar }}</span>{% endif %}
+      <div class="tc-meta">
+        {% if t.is_new %}<span class="badge badge-new">New</span>{% endif %}
+        {% if t.is_aec %}<span class="badge">AEC</span>{% else %}<span class="badge" style="background:var(--paper-3);color:var(--muted);border:1px solid var(--line-2);">Non-AEC</span>{% endif %}
+        {% if t.days_remaining is not None and t.days_remaining >= 0 and t.days_remaining <= 3 %}<span class="badge badge-urgent">{{ t.days_remaining }}d left</span>{% endif %}
+        {% if t.reference_no %}<span style="font-size:.66rem;color:var(--muted-2);">Ref: {{ t.reference_no }}</span>{% endif %}
+      </div>
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Ad Photo</div>
+      {% if t.newspaper_meta.ad_image %}
+      <a href="#" onclick="openAdPhoto('{{ t.newspaper_meta.ad_image.url }}'); return false;" title="View tender photo">
+        <img src="{{ t.newspaper_meta.ad_image.url }}" alt="Tender photo" style="width:100%;max-width:104px;height:auto;border:1px solid var(--line);display:block;"/>
+      </a>
+      {% else %}<span class="muted">—</span>{% endif %}
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Edition · Page</div>
+      <span style="color:var(--ink);white-space:nowrap;">{{ t.newspaper_meta.edition.edition_date|date:"d M Y" }}</span>
+      <div style="font-size:.68rem;color:var(--muted-2);margin-top:2px;">Page {{ t.newspaper_meta.page_number }} · {{ t.newspaper_meta.edition.source_display_en }}</div>
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Entity</div>
+      <span title="{{ t.entity }}" style="color:var(--ink);">{{ t.entity|truncatechars:40|default:"—" }}</span>
+      {% if t.entity_ar and t.entity_ar != t.entity %}<div class="ar" style="font-size:.72rem;color:var(--muted);margin-top:2px;">{{ t.entity_ar|truncatechars:35 }}</div>{% endif %}
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Deadline</div>
+      {% if t.submission_deadline %}
+        <span style="font-weight:{% if t.days_remaining is not None and t.days_remaining <= 7 and not t.is_expired %}700{% else %}500{% endif %};color:{% if t.is_expired %}var(--muted-2){% elif t.days_remaining <= 7 %}var(--bad){% else %}var(--ink){% endif %};">{{ t.submission_deadline|date:"d M Y" }}</span>
+        {% if not t.is_expired and t.days_remaining is not None %}<div style="font-size:.66rem;color:var(--muted-2);margin-top:1px;">{% if t.days_remaining == 0 %}Today!{% elif t.days_remaining > 0 %}{{ t.days_remaining }}d left{% else %}Expired{% endif %}</div>{% endif %}
+      {% else %}<span class="muted">—</span>{% endif %}
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Category</div>
+      <span class="badge badge-cat">{{ t.get_category_display }}</span>
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Status</div>
+      {% if t.status == 'OPEN' %}<span class="badge badge-open">Open</span>
+      {% elif t.status == 'CLOSED' %}<span class="badge badge-closed">Closed</span>
+      {% elif t.status == 'AWARD' or t.status == 'AWARDED' %}<span class="badge badge-award">Awarded</span>
+      {% elif t.status == 'CANCEL' %}<span class="badge badge-cancel">Cancelled</span>
+      {% else %}<span class="badge badge-closed">{{ t.get_status_display }}</span>{% endif %}
+    </div>
+
+    <div style="padding-top:2px;display:flex;flex-direction:column;gap:6px;">
+      <a href="{% url 'tenders:detail' t.pk %}" class="btn btn-black btn-sm" style="white-space:nowrap;text-align:center;justify-content:center;">{% icon 'eye' %}View →</a>
+      {% if t.newspaper_meta.original_pdf_url %}
+      <a href="{{ t.newspaper_meta.original_pdf_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="white-space:nowrap;text-align:center;justify-content:center;" title="Open the original newspaper PDF">{% icon 'file' 12 %} PDF</a>
+      {% endif %}
+      {% if can_administer %}
+      <button onclick="deleteTender({{ t.pk }}, this)" class="btn btn-sm" style="white-space:nowrap;text-align:center;justify-content:center;background:var(--bad);border-color:var(--bad);color:#fff;cursor:pointer;" title="Delete this tender permanently (admin only)">{% icon 'trash' %}Delete</button>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div style="text-align:center;padding:60px 20px;color:var(--muted);">
+    <div style="margin-bottom:12px;color:var(--muted-2);">{% icon 'inbox' 34 %}</div>
+    <div style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.84rem;margin-bottom:8px;">No newspaper tenders found</div>
+    <div style="font-size:.78rem;margin-bottom:14px;">{% if non_aec_mode %}Non-AEC tenders{% else %}AEC tenders{% endif %} extracted from the daily newspaper editions (Al-Rai, Al-Ghad, Ad-Dustour) will appear here.</div>
+    <a href="{% if non_aec_mode %}{% url 'newspaper_tenders:non_aec' %}{% else %}{% url 'newspaper_tenders:list' %}{% endif %}" class="btn btn-ghost btn-sm">{% icon 'x-circle' %}Clear filters</a>
+  </div>
+  {% endfor %}
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination">
+  {% if page_obj.has_previous %}
+    <a href="?{% query_transform request page=1 %}" class="page-link">«</a>
+    <a href="?{% query_transform request page=page_obj.previous_page_number %}" class="page-link">‹</a>
+  {% endif %}
+  {% for num in page_obj.paginator.page_range %}
+    {% if page_obj.number == num %}<span class="page-link current">{{ num }}</span>
+    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}<a href="?{% query_transform request page=num %}" class="page-link">{{ num }}</a>{% endif %}
+  {% endfor %}
+  {% if page_obj.has_next %}
+    <a href="?{% query_transform request page=page_obj.next_page_number %}" class="page-link">›</a>
+    <a href="?{% query_transform request page=page_obj.paginator.num_pages %}" class="page-link">»</a>
+  {% endif %}
+  <span class="muted" style="font-size:.72rem;margin-left:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} total
+  </span>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<div class="adphoto-overlay" id="adphoto-overlay" onclick="if(event.target===this)closeAdPhoto()">
+  <div class="adphoto-box">
+    <button class="adphoto-close" onclick="closeAdPhoto()" title="Close" aria-label="Close">{% icon 'x' %}</button>
+    <div class="adphoto-controls">
+      <button class="adphoto-zbtn" onclick="adZoomBy(1.25)" title="Zoom in">+</button>
+      <button class="adphoto-zbtn" onclick="adZoomBy(0.8)" title="Zoom out">−</button>
+      <button class="adphoto-zbtn rst" onclick="adZoomReset()" title="Fit to window">{% icon 'refresh' %}RESET</button>
+    </div>
+    <div class="adphoto-scroll">
+      <img id="adphoto-img" src="" alt="Tender photo"/>
+    </div>
+  </div>
+</div>
+<script>
+function runNewspaperCheck(btn){
+  btn.disabled = true;
+  fetch("{% url 'newspaper_tenders:run' %}", {method:'POST', headers:{'X-CSRFToken': getCsrf()}})
+    .then(r => r.json())
+    .then(d => {
+      showToast(d.message || d.status, d.status === 'started' ? 'success' : 'success');
+      // Re-enable after a moment; the run continues in the background.
+      setTimeout(() => { btn.disabled = false; }, 5000);
+    })
+    .catch(() => { showToast('Error starting the check', 'error'); btn.disabled = false; });
+}
+let adZoom = 1, adBaseW = 0;
+function openAdPhoto(url){
+  const img = document.getElementById('adphoto-img');
+  adZoom = 1; adBaseW = 0;
+  img.style.width = ''; img.style.maxWidth = ''; img.style.maxHeight = '';
+  img.src = url;
+  document.getElementById('adphoto-overlay').classList.add('open');
+}
+function closeAdPhoto(){
+  document.getElementById('adphoto-overlay').classList.remove('open');
+  document.getElementById('adphoto-img').src = '';
+}
+function adZoomBy(f){
+  const img = document.getElementById('adphoto-img');
+  if (!adBaseW) adBaseW = img.clientWidth || 400;
+  adZoom = Math.min(6, Math.max(0.4, adZoom * f));
+  img.style.maxWidth = 'none'; img.style.maxHeight = 'none';
+  img.style.width = Math.round(adBaseW * adZoom) + 'px';
+}
+function adZoomReset(){
+  const img = document.getElementById('adphoto-img');
+  adZoom = 1; adBaseW = 0;
+  img.style.width = ''; img.style.maxWidth = ''; img.style.maxHeight = '';
+}
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeAdPhoto(); });
+function listAECFeedback(pk,vote,clickedBtn){
+  const fd=new FormData();fd.append('vote',vote);
+  fetch(`/tenders/${pk}/aec-feedback/`,{method:'POST',headers:{'X-CSRFToken':getCsrf(),'X-Requested-With':'XMLHttpRequest'},body:fd})
+    .then(r=>r.json()).then(data=>{
+      const upBtn=document.getElementById(`aec-up-${pk}`),downBtn=document.getElementById(`aec-down-${pk}`);
+      if(data.vote==='UP'){if(upBtn){upBtn.className='vote-btn up-on';}if(downBtn){downBtn.className='vote-btn';}showToast('Marked accurate','success');}
+      else{if(downBtn){downBtn.className='vote-btn down-on';}if(upBtn){upBtn.className='vote-btn';}showToast('Marked not AEC','success');}
+    }).catch(()=>showToast('Error','error'));
+}
+function toggleBookmark(pk,btn){
+  // Identical to tenders/list.html — the X-Requested-With header is what
+  // makes the endpoint answer JSON instead of redirecting.
+  fetch(`/tenders/${pk}/bookmark/`,{method:'POST',headers:{'X-CSRFToken':getCsrf(),'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(data=>{btn.style.color=data.bookmarked?'var(--yellow-deep)':'var(--grey-3)';showToast(data.bookmarked?'Bookmarked':'Removed','success');})
+    .catch(()=>showToast('Error','error'));
+}
+function deleteTender(pk,btn){
+  if(!confirm('Delete this tender permanently from the database? This cannot be undone.'))return;
+  fetch(`/tenders/${pk}/delete/`,{method:'POST',headers:{'X-CSRFToken':getCsrf(),'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(data=>{
+      if(data.deleted){const card=btn.closest('.tender-card');if(card)card.remove();showToast('Tender deleted','success');}
+      else{showToast(data.error||'Error','error');}
+    }).catch(()=>showToast('Error','error'));
+}
+</script>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{{ e.full_name }} — CV — TenderRadar{% endblock %}
+{% block page_title %}{{ e.full_name }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'bd:cv_list' %}" class="btn btn-ghost btn-sm">{% icon 'cv' %}CV Pool</a>
+<a href="{% url 'bd:cv_edit' e.pk %}" class="btn btn-outline btn-sm">{% icon 'edit' %}Edit</a>
+<a href="{% url 'bd:cv_download' e.pk %}" class="btn btn-black btn-sm">{% icon 'download' %}Download AJi CV (DOCX)</a>
+{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start;">
+
+  <div class="card"><div style="padding:22px;">
+    <div style="font-size:1.15rem;font-weight:800;">{{ e.full_name }}</div>
+    <div style="color:#777;margin-bottom:14px;">{{ e.current_position }}</div>
+
+    <div style="display:flex;gap:24px;align-items:flex-start;margin-bottom:16px;">
+      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:.84rem;">
+        <div><strong>Profession:</strong> {{ e.profession|default:"—" }}</div>
+        <div><strong>Nationality:</strong> {{ e.nationality|default:"—" }}</div>
+        <div><strong>Discipline:</strong> {{ e.get_discipline_display }}</div>
+        <div><strong>Experience:</strong> {{ e.years_experience|default:"—" }} years</div>
+        <div><strong>Years with Firm:</strong> {{ e.years_with_firm|default:"—" }}</div>
+        <div><strong>Status:</strong> {{ e.get_status_display }}</div>
+        <div style="grid-column:1/-1;"><strong>Countries:</strong> {{ e.countries_experience|default:"—" }}</div>
+      </div>
+      {% if e.photo %}
+      <img src="{{ e.photo.url }}" alt="{{ e.full_name }}"
+           style="width:110px;height:130px;object-fit:cover;border-radius:8px;border:2px solid var(--yellow);flex-shrink:0;"
+           onerror="this.style.display='none'">
+      {% else %}
+      <form method="post" action="{% url 'bd:cv_photo_update' e.pk %}" style="flex-shrink:0;">
+        {% csrf_token %}
+        <div style="width:110px;height:130px;border-radius:8px;background:#f5f5f5;border:1px dashed #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+          <span style="color:#bbb;font-size:.68rem;">No photo</span>
+          <button type="submit" name="action" value="re_extract" class="btn btn-ghost btn-sm" style="font-size:.66rem;padding:3px 8px;"
+                  title="Extract the photo from the stored original CV file">{% icon 'refresh' %}Extract</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if e.memberships_list %}
+    <h4 style="margin:14px 0 6px;">Memberships</h4>
+    <ul style="margin:0 0 10px 18px;font-size:.84rem;">{% for m in e.memberships_list %}<li>{{ m }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    {% if e.synopsis %}
+    <h4 style="margin:14px 0 6px;">Synopsis</h4>
+    <p style="font-size:.86rem;line-height:1.6;white-space:pre-line;">{{ e.synopsis }}</p>
+    {% endif %}
+
+    {% if e.education %}
+    <h4 style="margin:16px 0 6px;border-top:2px solid var(--yellow);padding-top:10px;">Education</h4>
+    {% for ed in e.education %}
+    <div style="font-size:.84rem;margin-bottom:6px;">
+      <strong>{{ ed.institution }}{% if ed.country %}, {{ ed.country }}{% endif %}{% if ed.years %}, {{ ed.years }}{% endif %}</strong><br>
+      {{ ed.degree }}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if e.employment %}
+    <h4 style="margin:16px 0 6px;border-top:2px solid var(--yellow);padding-top:10px;">Employment Record</h4>
+    {% for j in e.employment %}
+    <div style="font-size:.84rem;margin-bottom:8px;">
+      <strong>{{ j.employer }}{% if j.position %}, {{ j.position }}{% endif %}{% if j.period %}, {{ j.period }}{% endif %}</strong>
+      {% if j.responsibilities %}
+      <ul style="margin:4px 0 0 18px;">{% for r in j.responsibilities %}<li>{{ r }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if e.experience %}
+    <h4 style="margin:16px 0 6px;border-top:2px solid var(--yellow);padding-top:10px;">Experience Record</h4>
+    {% for x in e.experience %}
+    <div style="font-size:.84rem;margin-bottom:8px;">
+      {% if x.project %}
+      <strong>{{ x.project }}{% if x.country %}, {{ x.country }}{% endif %}{% if x.year %}, {{ x.year }}{% endif %}</strong><br>
+      {% if x.position %}<em>Position:</em> {{ x.position }}<br>{% endif %}
+      {% if x.client %}<em>Client:</em> {{ x.client }}<br>{% endif %}
+      {% endif %}
+      {{ x.description }}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if e.certifications %}
+    <h4 style="margin:16px 0 6px;border-top:2px solid var(--yellow);padding-top:10px;">Certifications</h4>
+    {% for c in e.certifications %}
+    <div style="font-size:.84rem;margin-bottom:4px;">{{ c.period }} — {{ c.name }}{% if c.location %} · {{ c.location }}{% endif %}</div>
+    {% endfor %}
+    {% endif %}
+
+    {% if e.languages %}
+    <h4 style="margin:16px 0 6px;border-top:2px solid var(--yellow);padding-top:10px;">Languages</h4>
+    <table style="font-size:.82rem;border-collapse:collapse;">
+      <tr style="font-weight:700;"><td style="padding:3px 14px 3px 0;">Language</td><td style="padding:3px 14px;">Reading</td><td style="padding:3px 14px;">Speaking</td><td style="padding:3px 14px;">Writing</td></tr>
+      {% for l in e.languages %}
+      <tr><td style="padding:3px 14px 3px 0;">{{ l.language }}</td><td style="padding:3px 14px;">{{ l.reading }}</td><td style="padding:3px 14px;">{{ l.speaking }}</td><td style="padding:3px 14px;">{{ l.writing }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div></div>
+
+  <div>
+    <div class="card" style="margin-bottom:16px;"><div style="padding:16px 18px;">
+      <div class="card-title" style="margin-bottom:10px;">{% icon 'folder' %}Documents</div>
+      {% for d in e.documents.all %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f3f3f3;font-size:.8rem;">
+        <a href="{{ d.file.url }}" target="_blank">{{ d.original_name|default:d.file.name|truncatechars:32 }}</a>
+        <span style="font-size:.66rem;font-weight:700;color:#888;">{{ d.get_kind_display }}</span>
+      </div>
+      {% empty %}
+      <div style="font-size:.8rem;color:#aaa;">No files attached.</div>
+      {% endfor %}
+    </div></div>
+
+    <div class="card"><div style="padding:16px 18px;">
+      <div class="card-title" style="margin-bottom:10px;">{% icon 'info' %}Meta</div>
+      <div style="font-size:.78rem;color:#777;line-height:1.8;">
+        Added: {{ e.created_at|date:"d M Y" }}{% if e.created_by %} by {{ e.created_by.username }}{% endif %}<br>
+        Updated: {{ e.updated_at|date:"d M Y, H:i" }}<br>
+        AI-parsed: {% if e.ai_parsed %}Yes{% else %}No{% endif %}
+      </div>
+      {% if e.needs_review %}
+      <form method="post" action="{% url 'bd:cv_mark_reviewed' e.pk %}" style="margin-top:10px;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm" style="width:100%;background:#fffef0;color:#b8860b;border:1px solid #ffe88a;">
+          {% icon 'check' %}Mark as Reviewed</button>
+      </form>
+      {% endif %}
+      {% if e.notes %}<div style="font-size:.8rem;margin-top:8px;padding-top:8px;border-top:1px solid #f3f3f3;white-space:pre-line;">{{ e.notes }}</div>{% endif %}
+      {% if is_bd_user %}
+      <form method="post" action="{% url 'bd:cv_delete' e.pk %}" style="margin-top:14px;"
+            onsubmit="return confirm('Delete this CV permanently?')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' %}Delete CV</button>
+      </form>
+      {% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

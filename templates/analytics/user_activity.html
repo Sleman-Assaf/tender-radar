@@ -1,0 +1,112 @@
+{# templates/analytics/user_activity.html #}
+{% extends "base.html" %}
+{% block title %}User Interactivity — Analytics{% endblock %}
+{% block page_title %}User Interactivity Report{% endblock %}
+
+{% block content %}
+{% include "analytics/_period_tabs.html" %}
+
+<div style="background:var(--white);border:var(--border);padding:20px;margin-bottom:20px;">
+  <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">User Activity Comparison (last {{ days }} days)</div>
+  <div style="font-size:.8rem;color:var(--grey-5);margin-bottom:14px;">Logins, Tender Views, and Portal Clicks side-by-side per user</div>
+  <canvas id="barCompare" height="120"></canvas>
+</div>
+
+<div style="background:var(--white);border:var(--border);padding:20px;margin-bottom:20px;">
+  <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">Tender Views per User — Daily</div>
+  <div style="font-size:.8rem;color:var(--grey-5);margin-bottom:14px;">Each line is one user. Hover for details.</div>
+  <canvas id="viewLines" height="160"></canvas>
+</div>
+
+<div style="background:var(--white);border:var(--border);padding:20px;margin-bottom:20px;">
+  <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">Portal Clicks per User — Daily</div>
+  <div style="font-size:.8rem;color:var(--grey-5);margin-bottom:14px;">Who is actively clicking through to source portals.</div>
+  <canvas id="clickLines" height="160"></canvas>
+</div>
+
+<div style="background:var(--white);border:var(--border);padding:20px;">
+  <div style="font-weight:700;margin-bottom:14px;">User Engagement Leaderboard</div>
+  <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+    <thead>
+      <tr style="border-bottom:2px solid var(--grey-2);">
+        <th style="text-align:left;padding:8px 12px;color:var(--grey-5);">#</th>
+        <th style="text-align:left;padding:8px 12px;color:var(--grey-5);">User</th>
+        <th style="text-align:center;padding:8px 12px;color:var(--grey-5);">Logins</th>
+        <th style="text-align:center;padding:8px 12px;color:var(--grey-5);">Views</th>
+        <th style="text-align:center;padding:8px 12px;color:var(--grey-5);">Portal Clicks</th>
+        <th style="text-align:center;padding:8px 12px;color:var(--grey-5);">Engagement Score</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in user_totals %}
+    <tr style="border-bottom:var(--border);">
+      <td style="padding:8px 12px;color:var(--grey-4);">{{ forloop.counter }}</td>
+      <td style="padding:8px 12px;">
+        <strong>{{ u.username }}</strong>
+        {% if u.full_name != u.username %}<span style="color:var(--grey-5);"> — {{ u.full_name }}</span>{% endif %}
+      </td>
+      <td style="padding:8px 12px;text-align:center;">{{ u.logins }}</td>
+      <td style="padding:8px 12px;text-align:center;color:var(--blue);">{{ u.views }}</td>
+      <td style="padding:8px 12px;text-align:center;color:var(--orange);">{{ u.clicks }}</td>
+      <td style="padding:8px 12px;text-align:center;">
+        <span style="font-weight:700;font-size:1rem;color:var(--yellow);">{{ u.score }}</span>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--grey-4);">No activity data in this period.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p style="margin-top:10px;font-size:.75rem;color:var(--grey-5);">Score = Views + Clicks×2 + Logins</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const spine        = {{ spine_json|safe }};
+const viewDatasets = {{ view_datasets_json|safe }};
+const clickDatasets= {{ click_datasets_json|safe }};
+const barLabels    = {{ bar_labels_json|safe }};
+const barViews     = {{ bar_views_json|safe }};
+const barClicks    = {{ bar_clicks_json|safe }};
+const barLogins    = {{ bar_logins_json|safe }};
+
+// Bar comparison
+new Chart(document.getElementById('barCompare'), {
+  type: 'bar',
+  data: {
+    labels: barLabels,
+    datasets: [
+      { label: 'Logins',        data: barLogins,  backgroundColor: '#FCD700' },
+      { label: 'Tender Views',  data: barViews,   backgroundColor: '#0F0F0D' },
+      { label: 'Portal Clicks', data: barClicks,  backgroundColor: '#E65100' },
+    ]
+  },
+  options: {
+    plugins: { legend: { position: 'top' } },
+    scales: { x: { stacked: false }, y: { beginAtZero: true, ticks: { precision: 0 } } }
+  }
+});
+
+// Views line
+new Chart(document.getElementById('viewLines'), {
+  type: 'line',
+  data: { labels: spine, datasets: viewDatasets },
+  options: {
+    plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } },
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    interaction: { mode: 'index' }
+  }
+});
+
+// Clicks line
+new Chart(document.getElementById('clickLines'), {
+  type: 'line',
+  data: { labels: spine, datasets: clickDatasets },
+  options: {
+    plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } },
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    interaction: { mode: 'index' }
+  }
+});
+</script>
+{% endblock %}

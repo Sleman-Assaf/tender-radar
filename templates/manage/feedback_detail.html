@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Feedback #{{ fb.pk }} — TenderRadar{% endblock %}
+{% block page_title %} Feedback #{{ fb.pk }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_feedback' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}All Feedback</a>
+{% endblock %}
+
+{% block content %}
+
+<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;">
+
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-body" style="padding:20px;">
+
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+          <span style="font-size:.78rem;font-weight:700;padding:4px 12px;border-radius:14px;
+            {% if fb.feedback_type == 'BUG' %}background:#fee;color:#c00;
+            {% elif fb.feedback_type == 'FEATURE' %}background:#e8f4fd;color:var(--info);
+            {% elif fb.feedback_type == 'CHANGE' %}background:#f0f9f0;color:#27ae60;
+            {% else %}background:#f5f5f5;color:#666;{% endif %}">
+            {{ fb.get_feedback_type_display }}
+          </span>
+          <span style="font-size:.74rem;color:#aaa;">
+            by <strong>{{ fb.author.get_full_name|default:fb.author.username }}</strong>
+            · {{ fb.created_at|date:"d M Y H:i" }}
+          </span>
+        </div>
+
+        <h2 style="font-size:1.05rem;font-weight:800;margin:0 0 14px;">{{ fb.title }}</h2>
+        <div style="font-size:.86rem;color:#333;line-height:1.7;white-space:pre-wrap;
+                    background:#f8f9fb;padding:14px 16px;border-radius:8px;">{{ fb.body }}</div>
+
+        {% if fb.attachment %}
+        <div style="margin-top:14px;">
+          <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+                      color:#aaa;margin-bottom:8px;">Attachment</div>
+          {% if fb.attachment.name|slice:"-4:" == ".png" or fb.attachment.name|slice:"-4:" == ".jpg" or fb.attachment.name|slice:"-5:" == ".jpeg" or fb.attachment.name|slice:"-4:" == ".gif" or fb.attachment.name|slice:"-5:" == ".webp" %}
+          <a href="{{ fb.attachment.url }}" target="_blank"
+             style="display:inline-block;border-radius:10px;overflow:hidden;border:1px solid #eee;">
+            <img src="{{ fb.attachment.url }}" alt="attachment"
+                 style="max-height:300px;max-width:100%;display:block;object-fit:contain;">
+          </a>
+          {% else %}
+          <a href="{{ fb.attachment.url }}" target="_blank"
+             style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;
+                    background:#f5f5f5;border-radius:8px;text-decoration:none;font-size:.82rem;
+                    color:#333;border:1px solid #e0e0e0;font-weight:600;">
+             {{ fb.attachment.name|slice:"21:" }}
+            <span style="font-size:.72rem;color:#aaa;font-weight:400;">Download</span>
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if fb.admin_note %}
+        <div style="margin-top:16px;padding:12px 14px;background:#fffef0;
+                    border-left:3px solid var(--yellow);border-radius:0 8px 8px 0;">
+          <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;
+                      letter-spacing:.06em;color:#aaa;margin-bottom:5px;">Current Admin Response</div>
+          <div style="font-size:.84rem;color:#333;line-height:1.6;white-space:pre-wrap;">{{ fb.admin_note }}</div>
+          {% if fb.reviewed_by %}
+          <div style="font-size:.7rem;color:#bbb;margin-top:6px;">
+            — {{ fb.reviewed_by.get_full_name|default:fb.reviewed_by.username }}, {{ fb.updated_at|date:"d M Y" }}
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">{% icon 'edit' %}Update Feedback</span></div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div style="margin-bottom:14px;">
+            <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Status</label>
+            <select name="status" class="form-control">
+              {% for val, label in statuses %}
+              <option value="{{ val }}" {% if fb.status == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div style="margin-bottom:14px;">
+            <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Priority</label>
+            <select name="priority" class="form-control">
+              {% for val, label in priorities %}
+              <option value="{{ val }}" {% if fb.priority == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;display:block;margin-bottom:4px;">Response to User</label>
+            <textarea name="admin_note" rows="5" class="form-control"
+              placeholder="Optional response — will be shown to the user on their feedback page...">{{ fb.admin_note }}</textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width:100%;"> {% icon 'save' %}Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

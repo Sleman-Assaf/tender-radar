@@ -1,0 +1,121 @@
+{# templates/manage/hub.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Manage System — TenderRadar{% endblock %}
+{% block eyebrow %}Superuser · Control Panel{% endblock %}
+{% block page_title %}System Management{% endblock %}
+{% block page_subtitle %}<p>Manage countries, scraper sources, tendering URLs, search keywords, users and AI settings.</p>{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='content' %}{% include "it/_nav.html" %}{% endwith %}
+<div class="mgrid">
+
+  <a href="{% url 'tenders:manage_countries' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'globe' 22 %}</div>
+    <div class="mcard-title">Countries</div>
+    <div class="mcard-desc">Add, edit or deactivate countries. Controls which appear in filters.</div>
+    <div class="mcard-stats">
+      <span><b>{{ country_count }}</b> total</span>
+      <span><b class="ok">{{ active_countries }}</b> active</span>
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:manage_sources' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'database' 22 %}</div>
+    <div class="mcard-title">Scraper Sources</div>
+    <div class="mcard-desc">Manage government portals. Each source can hold multiple tendering URLs.</div>
+    <div class="mcard-stats">
+      <span><b>{{ source_count }}</b> total</span>
+      <span><b class="ok">{{ active_sources }}</b> active</span>
+      <span><b class="info">{{ url_count }}</b> URLs</span>
+    </div>
+  </a>
+
+  {% if np_enabled %}
+  <a href="{% url 'tenders:it_runs' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'newspaper' 22 %}</div>
+    <div class="mcard-title">Newspaper Tenders</div>
+    <div class="mcard-desc">Newspaper and News run history: editions, PDFs and extracted tenders per run, with Retry, Rescan and Reset.</div>
+    <div class="mcard-stats">
+      <span><b>{{ np_names }}</b> newspaper{{ np_names|pluralize }}</span>
+      <span><b class="info">{{ np_editions }}</b> editions</span>
+      <span><b>{{ np_tenders }}</b> tenders</span>
+      <span><b class="ok">{{ np_aec }}</b> AEC</span>
+    </div>
+  </a>
+  {% endif %}
+
+  <a href="{% url 'tenders:manage_rel_keywords' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'search' 22 %}</div>
+    <div class="mcard-title">Relevance Keywords</div>
+    <div class="mcard-desc">Keywords that decide if a scraped tender is relevant to AJi Group services.</div>
+    <div class="mcard-stats"><span><b>{{ rel_kw_count }}</b> keywords (EN + AR)</span></div>
+  </a>
+
+  <a href="{% url 'tenders:manage_cat_keywords' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'ruler' 22 %}</div>
+    <div class="mcard-title">Category Keywords</div>
+    <div class="mcard-desc">Keywords that auto-classify tenders into engineering categories (Civil, MEP…).</div>
+    <div class="mcard-stats"><span><b>{{ cat_kw_count }}</b> mappings</span></div>
+  </a>
+
+  <a href="{% url 'tenders:manage_users' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'eye' 22 %}</div>
+    <div class="mcard-title">Tender Access Control</div>
+    <div class="mcard-desc">Who sees All Tenders vs AEC-only, and team-leader access. Accounts, roles
+      and departments live in the System Dashboard.</div>
+  </a>
+
+  <a href="{% url 'tenders:manage_feedback' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'megaphone' 22 %}</div>
+    <div class="mcard-title">User Feedback</div>
+    <div class="mcard-desc">Review bug reports, feature requests, and user suggestions.</div>
+  </a>
+
+  {# Daily tender digest — the tender e-mail newsletter. Tender-domain feature, #}
+  {# so it keeps its place here as well as on System Dashboard → Settings.         #}
+  <a href="{% url 'tenders:manage_digest' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'bell' 22 %}</div>
+    <div class="mcard-title">Daily Digest</div>
+    <div class="mcard-desc">Daily 9 AM tender e-mail per user's preferred countries. Send now, test, enable/disable.</div>
+    <div class="mcard-stats">
+      <span><b class="{% if intg.digest_enabled %}ok{% endif %}">{% if intg.digest_enabled %}ON{% else %}OFF{% endif %}</b> digest</span>
+      <span><b class="info">{{ intg.digest_hour|stringformat:"02d" }}:00</b> daily</span>
+    </div>
+  </a>
+
+  {% comment %} Accounts, departments, roles, backups and every system setting are
+     administered from the System Dashboard — linked, never duplicated here. {% endcomment %}
+  <a href="{% url 'tenders:it_dashboard' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'shield' 22 %}</div>
+    <div class="mcard-title">System Dashboard</div>
+    <div class="mcard-desc">Users, departments, roles, backup &amp; restore, and all system settings
+      (e-mail, Microsoft Graph, AI, general).</div>
+    <div class="mcard-stats">
+      <span><b class="{% if intg.graph_enabled %}ok{% endif %}">{% if intg.graph_enabled %}ON{% else %}OFF{% endif %}</b> mail</span>
+      <span><b class="{% if intg.ldap_enabled %}ok{% endif %}">{% if intg.ldap_enabled %}ON{% else %}OFF{% endif %}</b> LDAP</span>
+    </div>
+  </a>
+
+  <a href="{% url 'tenders:aec_feedback_report' %}" class="mcard">
+    <div class="mcard-ic">{% icon 'chart' 22 %}</div>
+    <div class="mcard-title">AEC Accuracy Report</div>
+    <div class="mcard-desc">Review how accurately tenders are auto-classified as AEC-relevant.</div>
+  </a>
+
+</div>
+
+<style>
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.mcard{display:flex;flex-direction:column;background:var(--paper-2);border:1px solid var(--line);border-top:3px solid var(--line-2);padding:22px;text-decoration:none;color:var(--ink);transition:border-color .15s,transform .12s,box-shadow .12s}
+.mcard:hover{border-top-color:var(--yellow);transform:translateY(-2px);box-shadow:var(--shadow)}
+.mcard-ic{width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--yellow);margin-bottom:14px}
+.mcard-title{font-weight:700;font-size:1rem;letter-spacing:-.01em;margin-bottom:6px}
+.mcard-desc{font-size:.82rem;color:var(--muted);line-height:1.55;flex:1}
+.mcard-stats{display:flex;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:.76rem;color:var(--muted)}
+.mcard-stats b{font-size:1.35rem;font-weight:700;color:var(--ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.mcard-stats b.ok{color:var(--ok)}
+.mcard-stats b.info{color:var(--info)}
+</style>
+{% endblock %}

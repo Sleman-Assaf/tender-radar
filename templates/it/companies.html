@@ -1,0 +1,114 @@
+{# templates/it/companies.html — Company Management #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Companies — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · Company Management{% endblock %}
+{% block page_title %}Companies{% endblock %}
+{% block page_subtitle %}<p>The organisational hierarchy: a company contains departments, a department contains employees.</p>{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:it_company_add' %}" class="btn btn-gold btn-sm">{% icon 'plus' %}Add Company</a>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='companies' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-stats">
+  <div class="it-stat">
+    <div class="lbl">Companies</div><div class="val">{{ companies|length }}</div>
+  </div>
+  <div class="it-stat ok">
+    <div class="lbl">Assigned Employees</div><div class="val">{{ total_employees }}</div>
+    <div class="sub">across all companies</div>
+  </div>
+  <div class="it-stat {% if orphan_departments %}warn{% endif %}">
+    <div class="lbl">Departments Without a Company</div>
+    <div class="val">{{ orphan_departments|length }}</div>
+    {% if orphan_departments %}<div class="sub"><a href="{% url 'tenders:it_departments' %}">Assign them →</a></div>{% endif %}
+  </div>
+</div>
+
+{% for c in companies %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header">
+    <span class="card-title">{{ c.name }}{% if c.code %} <code style="color:var(--gold);font-weight:700;font-size:.78rem;">{{ c.code }}</code>{% endif %}</span>
+    <div style="display:flex;gap:8px;align-items:center;">
+      {% if c.is_active %}<span class="state-pill on">Active</span>{% else %}<span class="state-pill off">Inactive</span>{% endif %}
+      <a href="{% url 'tenders:it_company_edit' c.pk %}" class="btn btn-outline btn-sm">{% icon 'edit' %}Edit</a>
+      {% if not c.dept_list %}
+      <form method="post" action="{% url 'tenders:it_company_delete' c.pk %}" style="display:inline;"
+            onsubmit="return confirm('Delete company &quot;{{ c.name }}&quot;? It has no departments — nothing else is affected.')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' %}Delete</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% if c.name_ar or c.description %}
+  <div class="card-pad" style="padding-bottom:0;font-size:.8rem;color:var(--muted);">
+    {% if c.name_ar %}<span class="ar">{{ c.name_ar }}</span>{% if c.description %} · {% endif %}{% endif %}{{ c.description }}
+  </div>
+  {% endif %}
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>Department</th><th>Code</th><th>Head</th><th>Employees</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for d in c.dept_list %}
+        <tr>
+          <td><a href="{% url 'tenders:it_department_detail' d.pk %}" style="font-weight:700;color:var(--ink);">{{ d.name }}</a></td>
+          <td>{% if d.code %}<code style="color:var(--gold);font-weight:700;">{{ d.code }}</code>{% else %}<span style="color:var(--muted-2);">—</span>{% endif %}</td>
+          <td>{% if d.head %}{{ d.head.get_full_name|default:d.head.username }}{% else %}<span class="state-pill warn">No head</span>{% endif %}</td>
+          <td style="font-weight:700;font-variant-numeric:tabular-nums;">{{ d.employees }}</td>
+          <td>{% if d.is_active %}<span class="state-pill on">Active</span>{% else %}<span class="state-pill off">Inactive</span>{% endif %}</td>
+          <td style="text-align:right;"><a href="{% url 'tenders:it_department_detail' d.pk %}" class="btn btn-ghost btn-sm">{% icon 'external' %}Open</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;padding:22px;color:var(--muted-2);">
+          No departments in this company yet. <a href="{% url 'tenders:it_department_add' %}?company={{ c.pk }}">Add one →</a>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+      {% if c.dept_list %}
+      <tfoot>
+        <tr><td colspan="6" style="padding-top:2px;">
+          <a href="{% url 'tenders:it_department_add' %}?company={{ c.pk }}" class="btn btn-ghost btn-sm">{% icon 'plus' %}Add department to {{ c.name }}</a>
+        </td></tr>
+        <tr>
+          <td colspan="3" style="font-size:.76rem;color:var(--muted);">{{ c.dept_list|length }} department{{ c.dept_list|length|pluralize }}</td>
+          <td style="font-weight:700;font-variant-numeric:tabular-nums;">{{ c.employees }}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% empty %}
+<div class="card">
+  <div class="card-pad" style="text-align:center;padding:44px;color:var(--muted);">
+    No companies yet. <a href="{% url 'tenders:it_company_add' %}">Create the first one →</a>
+  </div>
+</div>
+{% endfor %}
+
+{% if orphan_departments %}
+<div class="sec-head"><h2>Departments without a company — {{ orphan_departments|length }}</h2></div>
+<div class="card">
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>Department</th><th>Employees</th><th></th></tr></thead>
+      <tbody>
+        {% for d in orphan_departments %}
+        <tr>
+          <td style="font-weight:700;">{{ d.name }}</td>
+          <td style="font-variant-numeric:tabular-nums;">{{ d.employees }}</td>
+          <td style="text-align:right;"><a href="{% url 'tenders:it_department_edit' d.pk %}" class="btn btn-outline btn-sm">{% icon 'building' %}Assign a company</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

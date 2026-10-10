@@ -1,0 +1,273 @@
+{# templates/tenders/profile.html #}
+{% extends "base.html" %}
+{% load static tender_extras %}
+{% block title %}My Profile — TenderRadar{% endblock %}
+{% block eyebrow %}Account · Preferences{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+{% block page_actions %}
+<button type="submit" form="profile-form" class="btn btn-yellow btn-sm">{% icon 'check' 14 %} Save</button>
+<a href="{% url 'tenders:dashboard' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' 14 %} Dashboard</a>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="profile-form" class="settings-form">
+  {% csrf_token %}
+
+  {% if request.user.is_superuser %}
+  <div class="admin-note">{% icon 'crown' 15 %} You're an admin — you always see all tenders, so these filters only affect your personal dashboard view.</div>
+  {% endif %}
+
+  <div class="pf-top">
+    <div class="fieldset">
+      <label class="fld-label">Your Details</label>
+      <p class="fld-help">Your name shows on your profile, notes and @mentions.</p>
+      <div class="details-grid">
+        <div><span class="mini-lbl">First Name</span><input type="text" name="first_name" value="{{ first_name }}" maxlength="30" class="form-control" placeholder="First name"></div>
+        <div><span class="mini-lbl">Last Name</span><input type="text" name="last_name" value="{{ last_name }}" maxlength="30" class="form-control" placeholder="Last name"></div>
+        <div><span class="mini-lbl">Username</span><input type="text" value="{{ request.user.username }}" class="form-control locked" readonly tabindex="-1" title="Username can't be changed"></div>
+        <div><span class="mini-lbl">Company</span><input type="text" value="{{ profile.company.name|default:'Not assigned' }}" class="form-control locked" readonly tabindex="-1" title="Assigned by your administrator"></div>
+        <div><span class="mini-lbl">Department</span><input type="text" value="{{ profile.department.name|default:'Not assigned' }}" class="form-control locked" readonly tabindex="-1" title="Assigned by your administrator"></div>
+        <div style="grid-column:1 / -1;">
+          <span class="mini-lbl">Phone</span>
+          <div class="phone-field {% if phone_error %}has-error{% endif %}">
+            <select name="phone_code" id="phoneCode" class="form-control phone-code" aria-label="Country code">
+              {% for c in phone_countries %}
+              <option value="{{ c.code }}" data-digits="{{ c.digits }}" data-name="{{ c.name }}" {% if c.code == phone_code %}selected{% endif %}>{{ c.iso }} {{ c.code }}</option>
+              {% endfor %}
+            </select>
+            <input type="tel" inputmode="numeric" name="phone_number" id="phoneNumber" value="{{ phone_number }}"
+                   class="form-control" placeholder="number" autocomplete="tel-national">
+          </div>
+          <div class="phone-hint" id="phoneHint"></div>
+          {% if phone_error %}<div class="phone-err">{% icon 'alert' 12 %} {{ phone_error }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="fieldset">
+      <label class="fld-label">Profile Picture</label>
+      <p class="fld-help">Choose an avatar. It appears in the top bar and on your notes.</p>
+      <input type="hidden" name="avatar" id="avatar-input" value="{{ profile.avatar }}">
+      <div class="avatar-picker">
+        <button type="button" class="av-opt {% if not profile.avatar %}on{% endif %}" data-av="" onclick="pickAvatar('')" title="Initials"><span class="av-initial">{{ request.user.username|first|upper }}</span></button>
+        {% for a in avatars %}
+        <button type="button" class="av-opt {% if profile.avatar == a %}on{% endif %}" data-av="{{ a }}" onclick="pickAvatar('{{ a }}')" title="Avatar"><img src="{% static 'img/avatars/' %}{{ a }}" alt="Avatar"></button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="fieldset">
+      <label class="fld-label">Tender Type</label>
+      {% if not profile.can_see_all_tenders %}
+      <div class="info-row">
+        <span style="color:var(--ink);">{% icon 'building' 22 %}</span>
+        <div><div style="font-weight:700;font-size:.9rem;">AEC Tenders Only</div>
+          <div class="fld-help" style="margin:2px 0 0;">Your account shows Architecture, Engineering &amp; Construction tenders. Contact your administrator to change this.</div></div>
+        <span class="pill mut" style="margin-left:auto;">Locked</span>
+      </div>
+      <input type="hidden" name="industry" value="AEC">
+      {% else %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:460px;">
+        <label id="opt-AEC" class="type-card {% if profile.industry == 'AEC' %}on{% endif %}" onclick="selectIndustry('AEC')">
+          <input type="radio" name="industry" value="AEC" {% if profile.industry == 'AEC' %}checked{% endif %} style="display:none;">
+          <span class="tc-ic">{% icon 'building' 24 %}</span><span class="tc-t">AEC Only</span><span class="tc-d">Architecture, Engineering &amp; Construction</span>
+        </label>
+        <label id="opt-GEN" class="type-card {% if profile.industry == 'GEN' %}on{% endif %}" onclick="selectIndustry('GEN')">
+          <input type="radio" name="industry" value="GEN" {% if profile.industry == 'GEN' %}checked{% endif %} style="display:none;">
+          <span class="tc-ic">{% icon 'globe' 24 %}</span><span class="tc-t">All Tenders</span><span class="tc-d">No industry filter</span>
+        </label>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="pf-grid3">
+    <div class="fieldset">
+      <label class="fld-label">Focus Countries</label>
+      <p class="fld-help">Highlight these on your dashboard. Leave all unchecked for every country.</p>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:9px;flex-wrap:wrap;">
+        <div style="position:relative;flex:1;min-width:130px;">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);">{% icon 'search' 14 %}</span>
+          <input type="text" id="country-search" class="form-control" placeholder="Search…" style="padding-left:30px;" oninput="filterCountries(this.value)">
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="setAllCountries(true)">{% icon 'list' %}All</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="setAllCountries(false)">{% icon 'x-circle' %}Clear</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="selectGCC()">GCC</button>
+        <span id="country-count-label" class="pill mut" style="font-size:.6rem;"></span>
+      </div>
+      <div id="country-grid" class="scroll-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px 4px;padding:6px 8px;border:1px solid var(--line-2);background:var(--paper-2);align-content:start;">
+        {% for checkbox in form.countries %}
+        <label class="country-check-label" data-label="{{ checkbox.choice_label|lower }}">{{ checkbox.tag }}<span>{{ checkbox.choice_label }}</span></label>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if has_order_fields %}
+    <div class="fieldset">
+      <label class="fld-label">Country Order <span class="mini-note">— drag to reorder</span></label>
+      <p class="fld-help">Order in the dashboard "Countries" list.</p>
+      <div id="country-order-list" class="order-list scroll-list">
+        {% for country in countries_for_order %}
+        <div class="order-item" data-code="{{ country.code }}"><span class="grip">{% icon 'grip' 15 %}</span>{% country_flag country %}<span style="font-size:.84rem;font-weight:600;">{{ country.name_en }}</span></div>
+        {% empty %}<div class="fld-help" style="padding:8px;">Select focus countries and save first.</div>{% endfor %}
+      </div>
+      <input type="hidden" name="country_order" id="country_order_input" value="{{ profile.country_order|default:'' }}">
+    </div>
+
+    <div class="fieldset">
+      <label class="fld-label">Source Order <span class="mini-note">— drag to reorder</span></label>
+      <p class="fld-help">Order scraped tenders appear in the list.</p>
+      <div id="source-order-list" class="order-list scroll-list">
+        {% for src in sources_for_ui %}
+        <div class="order-item-src" data-id="{{ src.id|stringformat:'d' }}"><span class="grip">{% icon 'grip' 15 %}</span>{% country_flag src.country %}<span style="font-size:.82rem;font-weight:600;">{{ src.name|truncatechars:30 }}</span></div>
+        {% endfor %}
+      </div>
+      <input type="hidden" name="source_order" id="source_order_input" value="{{ profile.source_order|default:'' }}">
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="save-bar">
+    <button type="submit" class="btn btn-yellow" style="min-width:160px;">{% icon 'check' 15 %} Save Changes</button>
+    <a href="{% url 'tenders:dashboard' %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+    <span class="fld-help" style="margin:0 0 0 auto;">Changes apply to your dashboard.</span>
+  </div>
+</form>
+
+<style>
+.settings-form{max-width:100%}
+.admin-note{display:flex;align-items:center;gap:9px;background:var(--paper-3);border-left:3px solid var(--yellow);padding:11px 14px;font-size:.82rem;font-weight:600;color:var(--ink);margin-bottom:14px}
+.admin-note .icon{color:var(--yellow-deep)}
+.pf-top{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:0 52px;align-items:start}
+@media(max-width:980px){.pf-top{grid-template-columns:1fr 1fr;gap:28px 40px}}
+.pf-top .fieldset{border:none;background:none;padding:0}
+.details-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mini-lbl{display:block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px}
+.details-grid .form-control{padding:9px 11px;font-size:.82rem}
+.form-control.locked{background:var(--paper-3);color:var(--muted);cursor:not-allowed;border-style:dashed}
+/* phone with country-code dropdown */
+.phone-field{display:flex;gap:8px}
+.phone-field .phone-code{max-width:118px;flex:none;font-size:.82rem;padding:9px 8px}
+.phone-field input{flex:1;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.phone-field.has-error input,.phone-field.has-error .phone-code{border-color:var(--bad)}
+.phone-hint{font-size:.68rem;color:var(--muted);margin-top:5px;min-height:.9em}
+.phone-hint.ok{color:var(--ok);font-weight:700}
+.phone-hint.bad{color:var(--bad);font-weight:700}
+.phone-err{font-size:.72rem;font-weight:700;color:var(--bad);margin-top:4px;display:flex;align-items:center;gap:5px}
+.pf-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 40px;align-items:start;border-top:1px solid var(--line);margin-top:28px;padding-top:26px}
+@media(max-width:1100px){.pf-grid3{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.pf-top,.pf-grid3{grid-template-columns:1fr}}
+.fieldset{padding:20px 0;border-bottom:1px solid var(--line)}
+.pf-top .fieldset{border-bottom:none}
+.pf-grid3 .fieldset{border-bottom:none}
+.fld-label{display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px}
+.fld-help{font-size:.76rem;color:var(--muted);margin:0 0 10px;line-height:1.45}
+.mini-note{font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0}
+/* equal-height scrollable lists with a visible branded scrollbar + bottom hint */
+.scroll-list{height:clamp(180px,calc(100dvh - 560px),600px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--yellow-deep) var(--line);box-shadow:inset 0 -16px 16px -16px rgba(0,0,0,.18)}
+.scroll-list::-webkit-scrollbar{width:10px}
+.scroll-list::-webkit-scrollbar-track{background:var(--line)}
+.scroll-list::-webkit-scrollbar-thumb{background:var(--yellow-deep);border:2px solid var(--line);border-radius:0}
+.scroll-list::-webkit-scrollbar-thumb:hover{background:var(--ink)}
+/* sticky save */
+.save-bar{position:sticky;bottom:0;z-index:6;display:flex;align-items:center;gap:10px;background:var(--paper);border-top:2px solid var(--ink);padding:14px 0;margin-top:20px;box-shadow:0 -10px 20px -14px rgba(0,0,0,.25)}
+/* avatar picker — tidy fixed grid */
+.avatar-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:10px;margin-top:2px}
+.av-opt{aspect-ratio:1/1;width:100%;border-radius:50%;border:2px solid var(--line);background:var(--paper-2);padding:0;cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:.12s}
+.av-opt:hover{border-color:var(--line-2)}
+.av-opt.on{border-color:var(--ink);box-shadow:0 0 0 3px var(--yellow)}
+.av-opt img{width:100%;height:100%;object-fit:cover;display:block}
+.av-initial{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--yellow);font-weight:700;font-size:1.1rem}
+/* type cards */
+.type-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 14px;border:1px solid var(--line-2);cursor:pointer;transition:.15s;text-align:center;background:var(--paper-2)}
+.type-card:hover{border-color:var(--ink)}
+.type-card.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.type-card .tc-ic{margin-bottom:8px;color:var(--ink)}
+.type-card .tc-t{font-weight:700;font-size:.9rem;margin-bottom:3px}
+.type-card .tc-d{font-size:.72rem;color:var(--muted);line-height:1.35}
+.info-row{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--paper-2);border:1px solid var(--line-2);max-width:520px}
+/* country checks */
+.country-check-label{display:flex;align-items:center;gap:7px;font-size:.8rem;cursor:pointer;padding:5px 6px;transition:background .1s;user-select:none}
+.country-check-label:hover{background:var(--paper)}
+.country-check-label input[type=checkbox]{accent-color:var(--yellow);width:15px;height:15px;flex:none}
+/* order lists */
+.order-list{display:flex;flex-direction:column;gap:6px}
+.order-item,.order-item-src{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--paper-2);border:1px solid var(--line);cursor:grab;user-select:none}
+.order-item:hover,.order-item-src:hover{border-color:var(--line-2)}
+.grip{color:var(--muted-2);display:inline-flex}
+</style>
+
+<script>
+function pickAvatar(a){document.getElementById('avatar-input').value=a;document.querySelectorAll('.av-opt').forEach(b=>b.classList.toggle('on', b.dataset.av===a));}
+function selectIndustry(val){['AEC','GEN'].forEach(v=>{const c=document.getElementById('opt-'+v);if(!c)return;c.classList.toggle('on',v===val);c.querySelector('input[type=radio]').checked=(v===val);});}
+function toggleClp(btn,id){var el=document.getElementById(id);if(!el)return;el.classList.toggle('open');btn.textContent=el.classList.contains('open')?'Show less':(btn.dataset.showall||'Show all');}
+const GCC=['jo','sa','ae','om','qa','kw','bh'];
+function _cbs(){return document.querySelectorAll('.country-check-label input[type=checkbox]');}
+function setAllCountries(ck){_cbs().forEach(cb=>cb.checked=ck);updateCountryCount();}
+function selectGCC(){document.querySelectorAll('.country-check-label').forEach(l=>{const code=(l.dataset.label.match(/\(([a-z]{2})\)/)||[])[1];const cb=l.querySelector('input[type=checkbox]');if(cb)cb.checked=GCC.indexOf(code)>=0;});updateCountryCount();}
+function filterCountries(q){q=q.toLowerCase();document.querySelectorAll('.country-check-label').forEach(l=>{l.style.display=l.dataset.label.indexOf(q)>=0?'':'none';});}
+function updateCountryCount(){const total=_cbs().length,checked=document.querySelectorAll('.country-check-label input[type=checkbox]:checked').length;const el=document.getElementById('country-count-label');if(el)el.textContent=checked===0?'All countries':checked+' of '+total;}
+updateCountryCount();
+_cbs().forEach(cb=>cb.addEventListener('change',updateCountryCount));
+
+// ── Phone: country-code aware, exact-digit enforcement ──────────────────────
+(function(){
+  var codeSel=document.getElementById('phoneCode'), num=document.getElementById('phoneNumber'),
+      hint=document.getElementById('phoneHint'), field=num?num.closest('.phone-field'):null;
+  if(!codeSel||!num) return;
+  function spec(){var o=codeSel.options[codeSel.selectedIndex];return{digits:parseInt(o.dataset.digits,10)||9,name:o.dataset.name||''};}
+  function refresh(){
+    var s=spec();
+    num.maxLength=s.digits;
+    num.placeholder='X'.repeat(s.digits);
+    var v=num.value.replace(/\D/g,'').slice(0,s.digits);
+    if(v!==num.value) num.value=v;
+    hint.classList.remove('ok','bad');
+    if(!v){hint.textContent=s.name+' · '+s.digits+' digits';}
+    else if(v.length===s.digits){hint.textContent='✓ '+s.name+' number complete';hint.classList.add('ok');}
+    else {hint.textContent=v.length+' / '+s.digits+' digits';hint.classList.add('bad');}
+    if(field) field.classList.remove('has-error');
+  }
+  num.addEventListener('input',refresh);
+  codeSel.addEventListener('change',refresh);
+  refresh();
+  // block submit when a partial number is entered
+  var form=document.getElementById('profile-form');
+  if(form) form.addEventListener('submit',function(e){
+    var s=spec(), v=num.value.replace(/\D/g,'');
+    if(v.length>0 && v.length!==s.digits){
+      e.preventDefault();
+      if(field) field.classList.add('has-error');
+      hint.textContent='Enter exactly '+s.digits+' digits for '+s.name+'.';
+      hint.classList.remove('ok');hint.classList.add('bad');
+      num.focus();
+    }
+  });
+})();
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function makeSortable(listId,inputId,dataAttr){
+  const list=document.getElementById(listId),input=document.getElementById(inputId);if(!list)return;
+  let dragging=null;
+  function updateInput(){const items=list.querySelectorAll('['+dataAttr+']');input.value=JSON.stringify(Array.from(items).map(el=>el.getAttribute(dataAttr)));}
+  list.querySelectorAll('['+dataAttr+']').forEach(item=>{
+    item.setAttribute('draggable','true');
+    item.addEventListener('dragstart',e=>{dragging=item;item.style.opacity='0.4';e.dataTransfer.effectAllowed='move';});
+    item.addEventListener('dragend',()=>{item.style.opacity='1';dragging=null;updateInput();});
+    item.addEventListener('dragover',e=>{e.preventDefault();if(dragging&&dragging!==item){const rect=item.getBoundingClientRect(),mid=rect.top+rect.height/2;if(e.clientY<mid)list.insertBefore(dragging,item);else list.insertBefore(dragging,item.nextSibling);}});
+    item.addEventListener('dragenter',e=>e.preventDefault());
+  });
+  updateInput();
+}
+document.addEventListener('DOMContentLoaded',()=>{makeSortable('country-order-list','country_order_input','data-code');makeSortable('source-order-list','source_order_input','data-id');});
+document.querySelector('#profile-form').addEventListener('submit',function(){
+  const cList=document.getElementById('country-order-list'),cInput=document.getElementById('country_order_input');
+  if(cList&&cInput)cInput.value=JSON.stringify(Array.from(cList.querySelectorAll('[data-code]')).map(el=>el.getAttribute('data-code')));
+  const sList=document.getElementById('source-order-list'),sInput=document.getElementById('source_order_input');
+  if(sList&&sInput)sInput.value=JSON.stringify(Array.from(sList.querySelectorAll('[data-id]')).map(el=>el.getAttribute('data-id')));
+});
+</script>
+{% endblock %}

@@ -1,0 +1,604 @@
+{# templates/manage/integration_settings.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+
+{% block title %}Integrations — TenderRadar{% endblock %}
+{% block eyebrow %}Superuser · Control Panel{% endblock %}
+{% block page_title %}Integrations{% endblock %}
+{% block page_subtitle %}<p>Microsoft 365 e-mail, Active Directory login, and WhatsApp alerts.</p>{% endblock %}
+
+{% block content %}
+{% include "manage/_form_styles.html" %}
+
+<div class="set-tabs">
+  <a href="{% url 'tenders:manage_site_settings' %}">{% icon 'cpu' 14 %}AI &amp; Site</a>
+  <a href="{% url 'tenders:manage_integrations' %}" class="active">{% icon 'link' 14 %}Integrations</a>
+</div>
+
+<form method="post" class="intg-wrap">
+  {% csrf_token %}
+  <input type="hidden" name="section_graph" value="1">
+  <input type="hidden" name="section_ldap" value="1">
+  <input type="hidden" name="section_whatsapp" value="1">
+
+  {# ── Microsoft Graph — e-mail ─────────────────────────────────────────── #}
+  <div class="card intg-card">
+    <div class="card-header">
+      <span class="card-title">{% icon 'mail' %}Microsoft Graph API — E-mail</span>
+      <span class="intg-state {% if cfg.graph_enabled %}on{% endif %}">
+        {% if cfg.graph_enabled %}Active{% else %}Not active{% endif %}
+      </span>
+    </div>
+    <div class="card-body card-pad">
+
+      <div class="act-row {% if cfg.graph_enabled %}act-on{% endif %}"
+           data-on-title="E-mail sending is ON"
+           data-off-title="E-mail sending is OFF"
+           data-on-sub="Not applied until you click Save."
+           data-off-sub="Switch this on, fill in the four Azure values below, then save.">
+        <div class="act-text">
+          <div class="act-title">
+            {% if cfg.graph_enabled %}E-mail sending is ON{% else %}E-mail sending is OFF{% endif %}
+          </div>
+          <div class="act-sub">
+            {% if cfg.graph_enabled %}
+              TenderRadar can send notifications and reports to employees.
+            {% else %}
+              Switch this on, fill in the four Azure values below, then save.
+            {% endif %}
+          </div>
+        </div>
+        <label class="act-toggle">
+          <input type="checkbox" name="graph_enabled" {% if cfg.graph_enabled %}checked{% endif %}>
+          <span class="act-track"><span class="act-knob"></span></span>
+          <span class="act-word">{% if cfg.graph_enabled %}ON{% else %}OFF{% endif %}</span>
+        </label>
+      </div>
+
+      {% if not cfg.graph_tenant_id or not cfg.graph_client_id or not cfg.graph_sender_email %}
+      <div class="act-note">
+        Ask your Azure administrator for an <strong>app registration</strong> with
+        the <strong>Mail.Send</strong> <em>application</em> permission and admin
+        consent granted. Without that consent, sending fails even when the
+        credentials are correct.
+      </div>
+      {% endif %}
+
+      <div class="intg-grid">
+        <div class="field-group">
+          <label>Tenant ID (Directory ID)</label>
+          <input type="text" name="graph_tenant_id" value="{{ cfg.graph_tenant_id }}"
+                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+        </div>
+        <div class="field-group">
+          <label>Client ID (Application ID)</label>
+          <input type="text" name="graph_client_id" value="{{ cfg.graph_client_id }}"
+                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Client secret
+          <span class="opt">
+            {% if cfg.graph_client_secret %}— saved, leave blank to keep it{% else %}— from Certificates &amp; secrets{% endif %}
+          </span>
+        </label>
+        <input type="password" name="graph_client_secret" value="" autocomplete="new-password"
+               placeholder="{% if cfg.graph_client_secret %}Saved — leave blank to keep{% else %}Enter client secret{% endif %}">
+      </div>
+
+      <div class="field-group">
+        <label>Sender mailbox (From)</label>
+        <input type="email" name="graph_sender_email" value="{{ cfg.graph_sender_email }}"
+               placeholder="tenders@ajigroup.com">
+        <div class="helptext">A real licensed Microsoft 365 mailbox.</div>
+      </div>
+
+      {# ── Authentication mode ─────────────────────────────────────────── #}
+      <div class="field-group">
+        <label>Authentication mode</label>
+        <div class="auth-modes">
+          <label class="auth-mode {% if cfg.graph_auth_mode != 'DELEGATED' %}sel{% endif %}">
+            <input type="radio" name="graph_auth_mode" value="APP"
+                   {% if cfg.graph_auth_mode != 'DELEGATED' %}checked{% endif %}>
+            <span class="am-title">Application (client credentials)</span>
+            <span class="am-sub">No mailbox password. Requires <strong>Mail.Send</strong>
+              <em>application</em> permission with <strong>admin consent</strong> in Azure —
+              without it, sending fails with 403 Access Denied.</span>
+          </label>
+          <label class="auth-mode {% if cfg.graph_auth_mode == 'DELEGATED' %}sel{% endif %}">
+            <input type="radio" name="graph_auth_mode" value="DELEGATED"
+                   {% if cfg.graph_auth_mode == 'DELEGATED' %}checked{% endif %}>
+            <span class="am-title">Delegated (mailbox sign-in)</span>
+            <span class="am-sub">Signs in with the sender mailbox's e-mail &amp; password —
+              no admin consent needed. Requires <strong>Mail.Send</strong> <em>delegated</em>
+              permission, "Allow public client flows" ON, and no MFA on that account.</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="field-group" id="graph_pw_group"
+           {% if cfg.graph_auth_mode != 'DELEGATED' %}style="display:none"{% endif %}>
+        <label>Mailbox password
+          <span class="opt">
+            {% if cfg.graph_mailbox_password %}— saved, leave blank to keep it{% else %}— password of the sender mailbox{% endif %}
+          </span>
+        </label>
+        <input type="password" name="graph_mailbox_password" value="" autocomplete="new-password"
+               placeholder="{% if cfg.graph_mailbox_password %}Saved — leave blank to keep{% else %}Enter the mailbox password{% endif %}">
+        <div class="helptext">Used only to request the OAuth token on this mailbox's behalf.</div>
+      </div>
+
+      {# ── Step 1 — OAuth 2.0 access token (required before sending) ────── #}
+      <div class="tok-panel {% if cfg.graph_token_status == 'valid' %}tok-ok{% elif cfg.graph_token_status == 'expired' %}tok-warn{% endif %}"
+           id="graph_tok_panel">
+        <div class="tok-text">
+          <div class="tok-title" id="graph_tok_title">
+            {% if cfg.graph_token_status == 'valid' %}
+              Access token active
+            {% elif cfg.graph_token_status == 'expired' %}
+              Access token expired
+            {% else %}
+              No access token yet
+            {% endif %}
+          </div>
+          <div class="tok-sub" id="graph_tok_sub">
+            {% if cfg.graph_token_status == 'valid' %}
+              Acquired {{ cfg.graph_token_acquired_at|date:"Y-m-d H:i" }} UTC ·
+              valid until {{ cfg.graph_token_expires_at|date:"Y-m-d H:i" }} UTC.
+              Refreshed automatically when it expires.
+            {% elif cfg.graph_token_status == 'expired' %}
+              Expired {{ cfg.graph_token_expires_at|date:"Y-m-d H:i" }} UTC —
+              it will be refreshed on the next send, or get a new one now.
+            {% else %}
+              Microsoft requires an OAuth 2.0 token before e-mails can be sent.
+              Save the four values above, then click <strong>Get Access Token</strong>.
+            {% endif %}
+          </div>
+        </div>
+        <button type="button" class="btn btn-sm tok-btn"
+                data-gettoken="{% url 'tenders:integration_get_graph_token' %}"
+                data-out="graph_test_out">
+          {% icon 'key' 14 %}
+          {% if cfg.graph_token_status == 'valid' %}Refresh Token{% else %}Get Access Token{% endif %}
+        </button>
+      </div>
+
+      <div class="intg-test">
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-test="{% url 'tenders:integration_test_graph' %}" data-out="graph_test_out">
+          {% icon 'signal' 14 %}Test connection
+        </button>
+        <input type="email" data-test-to="graph"
+               placeholder="Test recipient — enter an e-mail to receive a test message">
+      </div>
+      <div id="graph_test_out" class="intg-out"></div>
+
+      <p class="intg-meta">Save first, then get the token — both use the saved values.
+        Changing the tenant, client ID or secret clears the stored token.</p>
+    </div>
+  </div>
+
+  {# ── Microsoft LDAP / Active Directory — login ────────────────────────── #}
+  <div class="card intg-card">
+    <div class="card-header">
+      <span class="card-title">{% icon 'key' %}Microsoft LDAP / Active Directory — Login</span>
+      <span class="intg-state {% if cfg.ldap_enabled %}on{% endif %}">
+        {% if cfg.ldap_enabled %}Active{% else %}Not active{% endif %}
+      </span>
+    </div>
+    <div class="card-body card-pad">
+
+      <div class="act-row {% if cfg.ldap_enabled %}act-on{% endif %}"
+           data-on-title="Domain login is ON"
+           data-off-title="Domain login is OFF"
+           data-on-sub="Not applied until you click Save."
+           data-off-sub="Switch this on to let staff sign in with their Windows domain account.">
+        <div class="act-text">
+          <div class="act-title">
+            {% if cfg.ldap_enabled %}Domain login is ON{% else %}Domain login is OFF{% endif %}
+          </div>
+          <div class="act-sub">
+            {% if cfg.ldap_enabled %}
+              Staff can sign in with their Windows domain account.
+            {% else %}
+              Switch this on to let staff sign in with their Windows domain account.
+            {% endif %}
+          </div>
+        </div>
+        <label class="act-toggle">
+          <input type="checkbox" name="ldap_enabled" {% if cfg.ldap_enabled %}checked{% endif %}>
+          <span class="act-track"><span class="act-knob"></span></span>
+          <span class="act-word">{% if cfg.ldap_enabled %}ON{% else %}OFF{% endif %}</span>
+        </label>
+      </div>
+
+      <div class="act-note">
+        Local TenderRadar accounts keep working whether this is on or off — if the
+        domain is unreachable, sign-in falls back to the local password.
+      </div>
+
+      <div class="intg-grid">
+        <div class="field-group">
+          <label>Server URI</label>
+          <input type="text" name="ldap_server_uri" value="{{ cfg.ldap_server_uri }}"
+                 placeholder="ldap://dc1.company.local:389" autocomplete="off">
+          <div class="helptext">Use <code>ldaps://…:636</code> for SSL.</div>
+        </div>
+        <div class="field-group">
+          <label>Domain (UPN suffix)</label>
+          <input type="text" name="ldap_domain" value="{{ cfg.ldap_domain }}"
+                 placeholder="company.local" autocomplete="off">
+          <div class="helptext">Users bind as <code>username@domain</code>.</div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Bind account
+          <span class="opt">— optional, for attribute lookup</span>
+        </label>
+        <input type="text" name="ldap_bind_dn" value="{{ cfg.ldap_bind_dn }}"
+               placeholder="svc_ldap@company.local" autocomplete="off">
+      </div>
+
+      <div class="field-group">
+        <label>Bind password
+          <span class="opt">
+            {% if cfg.ldap_bind_password %}— saved, leave blank to keep it{% else %}— optional{% endif %}
+          </span>
+        </label>
+        <input type="password" name="ldap_bind_password" value="" autocomplete="new-password"
+               placeholder="{% if cfg.ldap_bind_password %}Saved — leave blank to keep{% else %}Enter bind password{% endif %}">
+      </div>
+
+      <div class="field-group">
+        <label>User search base</label>
+        <input type="text" name="ldap_user_search_base" value="{{ cfg.ldap_user_search_base }}"
+               placeholder="OU=Staff,DC=company,DC=local" autocomplete="off">
+        <div class="helptext">Leave blank to skip the e-mail / name lookup.</div>
+      </div>
+
+      <div class="field-group">
+        <label>User filter</label>
+        <input type="text" name="ldap_user_filter" value="{{ cfg.ldap_user_filter }}"
+               placeholder="(sAMAccountName={username})" autocomplete="off">
+        <div class="helptext"><code>{username}</code> is replaced with the login name.</div>
+      </div>
+
+      <div class="field-group">
+        <label>Options</label>
+        <label class="check-row">
+          <input type="checkbox" name="ldap_use_ssl" {% if cfg.ldap_use_ssl %}checked{% endif %}>
+          Use SSL (LDAPS)
+        </label>
+        <label class="check-row">
+          <input type="checkbox" name="ldap_auto_create_users" {% if cfg.ldap_auto_create_users %}checked{% endif %}>
+          Create a TenderRadar account automatically on first domain login
+        </label>
+      </div>
+
+      <div class="intg-test">
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-test="{% url 'tenders:integration_test_ldap' %}" data-out="ldap_test_out">
+          {% icon 'signal' 14 %}Test connection
+        </button>
+      </div>
+      <div id="ldap_test_out" class="intg-out"></div>
+
+      <p class="intg-meta">Save first, then test — the test uses the saved values.</p>
+    </div>
+  </div>
+
+  {# ── WhatsApp — alerts ────────────────────────────────────────────────── #}
+  <div class="card intg-card">
+    <div class="card-header">
+      <span class="card-title">{% icon 'message' %}WhatsApp — Alerts</span>
+      <span class="intg-state {% if cfg.wa_enabled %}on{% endif %}">
+        {% if cfg.wa_enabled %}Active{% else %}Not active{% endif %}
+      </span>
+    </div>
+    <div class="card-body card-pad">
+
+      <div class="act-row {% if cfg.wa_enabled %}act-on{% endif %}"
+           data-on-title="WhatsApp alerts are ON"
+           data-off-title="WhatsApp alerts are OFF"
+           data-on-sub="Not applied until you click Save."
+           data-off-sub="Switch this on, add the API key below, then save.">
+        <div class="act-text">
+          <div class="act-title">
+            {% if cfg.wa_enabled %}WhatsApp alerts are ON{% else %}WhatsApp alerts are OFF{% endif %}
+          </div>
+          <div class="act-sub">
+            {% if cfg.wa_enabled %}
+              TenderRadar can send alerts to the numbers below.
+            {% else %}
+              Switch this on, add the API key below, then save.
+            {% endif %}
+          </div>
+        </div>
+        <label class="act-toggle">
+          <input type="checkbox" name="wa_enabled" {% if cfg.wa_enabled %}checked{% endif %}>
+          <span class="act-track"><span class="act-knob"></span></span>
+          <span class="act-word">{% if cfg.wa_enabled %}ON{% else %}OFF{% endif %}</span>
+        </label>
+      </div>
+
+      <div class="intg-grid">
+        <div class="field-group">
+          <label>Provider</label>
+          <select name="wa_provider">
+            <option value="WASENDER" {% if cfg.wa_provider == 'WASENDER' %}selected{% endif %}>
+              WaSenderAPI (https://wasenderapi.com/api)
+            </option>
+            <option value="CUSTOM" {% if cfg.wa_provider == 'CUSTOM' %}selected{% endif %}>
+              Custom / Other provider (WaSender-compatible)
+            </option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>API base URL</label>
+          <input type="text" name="wa_api_url" value="{{ cfg.wa_api_url }}"
+                 placeholder="https://wasenderapi.com/api" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>API key / token
+          <span class="opt">
+            {% if cfg.wa_api_key %}— saved, leave blank to keep it{% else %}— sent as a Bearer token{% endif %}
+          </span>
+        </label>
+        <input type="password" name="wa_api_key" value="" autocomplete="new-password"
+               placeholder="{% if cfg.wa_api_key %}Saved — leave blank to keep{% else %}Enter API key{% endif %}">
+      </div>
+
+      <div class="intg-test">
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-test="{% url 'tenders:integration_test_whatsapp' %}" data-out="wa_test_out">
+          {% icon 'signal' 14 %}Send test message
+        </button>
+        <input type="text" data-test-to="wa"
+               placeholder="Send a test message to… (optional)">
+      </div>
+      <div id="wa_test_out" class="intg-out"></div>
+
+      <p class="intg-meta">Save first, then test — the test uses the saved values.</p>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">{% icon 'save' 15 %}Save all integration settings</button>
+    <a href="{% url 'tenders:manage_hub' %}" class="btn btn-ghost">{% icon 'arrow-left' %}Back to control panel</a>
+  </div>
+
+  {% if cfg.updated_at %}
+  <p class="intg-meta">
+    Last saved {{ cfg.updated_at|date:"Y-m-d H:i" }}{% if cfg.updated_by %} by {{ cfg.updated_by.username }}{% endif %}
+  </p>
+  {% endif %}
+</form>
+
+<script>
+(function () {
+  // Live feedback on every switch.
+  document.querySelectorAll('.act-row').forEach(function (row) {
+    var box = row.querySelector('.act-toggle input');
+    if (!box) { return; }
+    var word = row.querySelector('.act-word');
+    var t    = row.querySelector('.act-title');
+    var s    = row.querySelector('.act-sub');
+    box.addEventListener('change', function () {
+      row.classList.toggle('act-on', box.checked);
+      word.textContent = box.checked ? 'ON' : 'OFF';
+      t.textContent = box.checked ? row.dataset.onTitle : row.dataset.offTitle;
+      s.textContent = box.checked ? row.dataset.onSub   : row.dataset.offSub;
+    });
+  });
+
+  function csrf() {
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  document.querySelectorAll('[data-test]').forEach(function (btn) {
+    var out = document.getElementById(btn.dataset.out);
+    var to  = btn.parentNode.querySelector('[data-test-to]');
+
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      out.className = 'intg-out';
+      out.style.display = 'block';
+      out.textContent = 'Testing…';
+
+      var body = new URLSearchParams();
+      if (to && to.value.trim()) { body.append('test_to', to.value.trim()); }
+
+      fetch(btn.dataset.test, {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrf(),
+                  'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body.toString()
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          out.className = 'intg-out ' + (d.ok ? 'ok' : 'err');
+          out.textContent = d.detail || (d.ok ? 'Connection OK.' : 'Test failed.');
+        })
+        .catch(function () {
+          out.className = 'intg-out err';
+          out.textContent = 'Could not reach the server.';
+        })
+        .finally(function () { btn.disabled = false; });
+    });
+  });
+
+  // ── Auth mode: show mailbox password only for Delegated ──
+  document.querySelectorAll('input[name="graph_auth_mode"]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      document.querySelectorAll('.auth-mode').forEach(function (l) {
+        l.classList.toggle('sel', l.querySelector('input').checked);
+      });
+      var pw = document.getElementById('graph_pw_group');
+      if (pw) { pw.style.display = (radio.value === 'DELEGATED' && radio.checked) ? '' : 'none'; }
+    });
+  });
+
+  // ── Step 1: Get / Refresh the Microsoft Graph OAuth 2.0 access token ──
+  function paintTokenPanel(d) {
+    var panel = document.getElementById('graph_tok_panel');
+    var title = document.getElementById('graph_tok_title');
+    var sub   = document.getElementById('graph_tok_sub');
+    var btn   = panel && panel.querySelector('.tok-btn');
+    if (!panel) { return; }
+    panel.classList.remove('tok-ok', 'tok-warn');
+    if (d.token_status === 'valid') {
+      panel.classList.add('tok-ok');
+      title.textContent = 'Access token active';
+      sub.textContent = 'Acquired ' + (d.acquired_at || '—') +
+                        ' · valid until ' + (d.expires_at || '—') +
+                        '. Refreshed automatically when it expires.';
+      if (btn) { btn.lastChild.textContent = 'Refresh Token'; }
+    } else if (d.token_status === 'expired') {
+      panel.classList.add('tok-warn');
+      title.textContent = 'Access token expired';
+      sub.textContent = 'Expired ' + (d.expires_at || '—') +
+                        ' — it will be refreshed on the next send, or get a new one now.';
+    } else {
+      title.textContent = 'No access token yet';
+      sub.textContent = 'Save the credentials above, then click Get Access Token.';
+    }
+  }
+
+  document.querySelectorAll('[data-gettoken]').forEach(function (btn) {
+    var out = document.getElementById(btn.dataset.out);
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      out.className = 'intg-out';
+      out.style.display = 'block';
+      out.textContent = 'Requesting access token from Microsoft…';
+
+      fetch(btn.dataset.gettoken, {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrf(),
+                  'Content-Type': 'application/x-www-form-urlencoded'},
+        body: ''
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          out.className = 'intg-out ' + (d.ok ? 'ok' : 'err');
+          out.textContent = d.detail || (d.ok ? 'Token acquired.' : 'Token request failed.');
+          paintTokenPanel(d);
+        })
+        .catch(function () {
+          out.className = 'intg-out err';
+          out.textContent = 'Could not reach the server.';
+        })
+        .finally(function () { btn.disabled = false; });
+    });
+  });
+
+})();
+</script>
+
+<style>
+  .set-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);
+    max-width:820px;margin:0 auto 22px}
+  .set-tabs a{display:inline-flex;align-items:center;gap:7px;padding:11px 18px;font-size:.76rem;font-weight:700;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-decoration:none;border-bottom:2px solid transparent}
+  .set-tabs a:hover{color:var(--ink)}
+  .set-tabs a.active{color:var(--ink);border-bottom-color:var(--yellow)}
+
+  .intg-wrap{max-width:820px;margin:0 auto}
+  .intg-card{margin-bottom:22px}
+  .intg-card .card-body.card-pad{padding:6px 18px 18px}
+  .intg-state{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+    padding:3px 9px;background:var(--paper-3);color:var(--muted)}
+  .intg-state.on{background:var(--ok-bg);color:var(--ok)}
+
+  /* Activation switch */
+  .act-row{display:flex;align-items:center;justify-content:space-between;gap:18px;
+    padding:18px;margin:12px 0 18px;border:1px solid var(--line-2);
+    background:var(--paper-3);flex-wrap:wrap;transition:border-color .18s,background .18s}
+  .act-row.act-on{border-color:var(--ok);background:var(--ok-bg)}
+  .act-title{font-size:.95rem;font-weight:700;color:var(--ink);display:flex;
+    align-items:center;gap:8px}
+  .act-title::before{content:'';width:8px;height:8px;border-radius:50%;
+    background:var(--muted-2);flex:none;transition:background .18s,box-shadow .18s}
+  .act-row.act-on .act-title::before{background:var(--ok);
+    box-shadow:0 0 0 4px rgba(31,157,85,.18)}
+  .act-sub{font-size:.79rem;color:var(--muted);margin-top:4px;max-width:56ch}
+
+  .act-toggle{display:inline-flex;align-items:center;gap:12px;cursor:pointer;flex:none;
+    user-select:none}
+  .act-toggle input{position:absolute;opacity:0;width:0;height:0}
+  .act-track{position:relative;width:60px;height:32px;border-radius:999px;
+    background:#c9c8bd;display:inline-block;flex:none;
+    transition:background .22s cubic-bezier(.4,.03,.2,1);
+    box-shadow:inset 0 1px 3px rgba(15,15,13,.18)}
+  .act-knob{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;
+    background:#fff;transition:transform .22s cubic-bezier(.4,.03,.2,1);
+    box-shadow:0 2px 5px rgba(15,15,13,.28)}
+  .act-toggle:hover .act-track{background:#b9b8ad}
+  .act-toggle input:checked + .act-track{background:var(--ok)}
+  .act-toggle:hover input:checked + .act-track{background:#1a8749}
+  .act-toggle input:checked + .act-track .act-knob{transform:translateX(28px)}
+  .act-toggle input:active + .act-track .act-knob{width:29px}
+  .act-toggle input:focus-visible + .act-track{box-shadow:0 0 0 3px var(--paper),
+    0 0 0 5px var(--ink)}
+  .act-word{font-size:.74rem;font-weight:700;letter-spacing:.1em;width:30px;
+    color:var(--muted);transition:color .18s}
+  .act-row.act-on .act-word{color:var(--ok)}
+  @media(prefers-reduced-motion:reduce){
+    .act-track,.act-knob,.act-row,.act-word{transition:none}
+  }
+
+  .act-note{font-size:.79rem;line-height:1.6;color:var(--ink-2);background:var(--warn-bg);
+    border-left:3px solid var(--warn);padding:11px 14px;margin-bottom:18px}
+
+  .intg-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
+  @media(max-width:720px){.intg-grid{grid-template-columns:1fr}}
+  .field-group .opt{font-weight:600;color:var(--muted-2);text-transform:none;letter-spacing:0}
+  .field-group code{background:var(--paper-3);padding:1px 4px;font-size:.7rem}
+  .check-row{display:flex;align-items:center;gap:8px;font-size:.84rem;color:var(--ink-2);
+    padding:4px 0;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:400}
+
+  /* Auth mode selector */
+  .auth-modes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:720px){.auth-modes{grid-template-columns:1fr}}
+  .auth-mode{display:block;padding:13px 15px;border:1px solid var(--line-2);
+    background:var(--paper-2);cursor:pointer;text-transform:none;letter-spacing:0;
+    font-weight:400;transition:border-color .15s,background .15s}
+  .auth-mode:hover{border-color:var(--ink)}
+  .auth-mode.sel{border-color:var(--ink);background:var(--paper-3);
+    box-shadow:inset 0 0 0 1px var(--ink)}
+  .auth-mode input{position:absolute;opacity:0;width:0;height:0}
+  .am-title{display:block;font-size:.84rem;font-weight:700;color:var(--ink);margin-bottom:5px}
+  .am-sub{display:block;font-size:.73rem;color:var(--muted);line-height:1.55}
+
+  /* Token acquisition panel */
+  .tok-panel{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    flex-wrap:wrap;padding:14px 16px;margin-top:18px;border:1px dashed var(--line-2);
+    background:var(--paper-3);transition:border-color .18s,background .18s}
+  .tok-panel.tok-ok{border-style:solid;border-color:var(--ok);background:var(--ok-bg)}
+  .tok-panel.tok-warn{border-style:solid;border-color:var(--warn);background:var(--warn-bg)}
+  .tok-title{font-size:.86rem;font-weight:700;color:var(--ink);display:flex;
+    align-items:center;gap:8px}
+  .tok-title::before{content:'';width:7px;height:7px;border-radius:50%;
+    background:var(--muted-2);flex:none}
+  .tok-panel.tok-ok .tok-title::before{background:var(--ok)}
+  .tok-panel.tok-warn .tok-title::before{background:var(--warn)}
+  .tok-sub{font-size:.76rem;color:var(--muted);margin-top:3px;max-width:52ch;line-height:1.5}
+  .tok-btn{flex:none;background:var(--ink);color:var(--paper);border:1px solid var(--ink)}
+  .tok-btn:hover{background:var(--ink-2)}
+
+  .intg-test{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-top:18px}
+  .intg-test input{flex:1;min-width:220px;background:var(--paper-2);border:1px solid var(--line-2);
+    padding:9px 12px;font-size:.82rem;font-family:var(--font);outline:none}
+  .intg-test input:focus{border-color:var(--ink)}
+  .intg-out{display:none;margin-top:10px;padding:10px 13px;font-size:.8rem;border-left:3px solid var(--line-2)}
+  .intg-out.ok{display:block;background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+  .intg-out.err{display:block;background:var(--bad-bg);color:var(--bad);border-color:var(--bad)}
+  .intg-meta{font-size:.74rem;color:var(--muted);margin-top:14px}
+</style>
+
+{% endblock %}

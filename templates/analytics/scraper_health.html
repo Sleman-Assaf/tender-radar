@@ -1,0 +1,93 @@
+{# templates/analytics/scraper_health.html #}
+{% extends "base.html" %}
+{% block title %}Scraper Health — Analytics{% endblock %}
+{% block page_title %}Scraper Health Report{% endblock %}
+
+{% block content %}
+{% include "analytics/_period_tabs.html" %}
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+  {% include "analytics/_kpi.html" with label="Total Runs" value=total_runs icon="" color="var(--blue)" %}
+  {% include "analytics/_kpi.html" with label="Successful" value=total_success icon="" color="var(--green)" %}
+  {% include "analytics/_kpi.html" with label="Failed" value=total_failed icon="" color="var(--red)" %}
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
+  <div style="background:var(--white);border:var(--border);padding:20px;">
+    <div style="font-weight:700;margin-bottom:14px;">Daily Scraper Runs</div>
+    <canvas id="dailyChart" height="200"></canvas>
+  </div>
+  <div style="background:var(--white);border:var(--border);padding:20px;">
+    <div style="font-weight:700;margin-bottom:14px;">Success vs Failure per Source</div>
+    <canvas id="sourceChart" height="200"></canvas>
+  </div>
+</div>
+
+<div style="background:var(--white);border:var(--border);padding:20px;">
+  <div style="font-weight:700;margin-bottom:14px;">Recent Scraper Runs</div>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+      <thead><tr style="border-bottom:2px solid var(--grey-2);">
+        <th style="text-align:left;padding:8px 12px;color:var(--grey-5);">Source</th>
+        <th style="text-align:left;padding:8px 12px;color:var(--grey-5);">Status</th>
+        <th style="text-align:center;padding:8px 12px;color:var(--grey-5);">Found</th>
+        <th style="text-align:center;padding:8px 12px;color:var(--grey-5);">New</th>
+        <th style="text-align:left;padding:8px 12px;color:var(--grey-5);">Started</th>
+        <th style="text-align:left;padding:8px 12px;color:var(--grey-5);">Error</th>
+      </tr></thead>
+      <tbody>
+      {% for log in logs %}
+      <tr style="border-bottom:var(--border);">
+        <td style="padding:8px 12px;font-weight:600;">{{ log.source.name }}</td>
+        <td style="padding:8px 12px;">
+          <span style="padding:2px 8px;font-size:.75rem;font-weight:700;
+            {% if log.status == 'SUCCESS' %}background:#e8f5e9;color:#2E7D32;
+            {% elif log.status == 'FAILED' %}background:#ffebee;color:#D32F2F;
+            {% else %}background:#fff8e1;color:#E65100;{% endif %}">
+            {{ log.status }}
+          </span>
+        </td>
+        <td style="padding:8px 12px;text-align:center;">{{ log.tenders_found|default:"—" }}</td>
+        <td style="padding:8px 12px;text-align:center;color:var(--green);">{{ log.tenders_new|default:"—" }}</td>
+        <td style="padding:8px 12px;color:var(--grey-5);">{{ log.started_at|date:"Y-m-d H:i" }}</td>
+        <td style="padding:8px 12px;color:var(--red);font-size:.78rem;">{{ log.error_message|truncatechars:60|default:"" }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--grey-4);">No scraper logs yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+new Chart(document.getElementById('dailyChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ daily_labels_json|safe }},
+    datasets: [
+      { label: 'Success', data: {{ daily_success_json|safe }}, backgroundColor: '#2E7D32', borderRadius: 2 },
+      { label: 'Failed',  data: {{ daily_failed_json|safe }},  backgroundColor: '#D32F2F', borderRadius: 2 },
+    ]
+  },
+  options: {
+    plugins: { legend: { position: 'top' } },
+    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } }
+  }
+});
+new Chart(document.getElementById('sourceChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ source_labels_json|safe }},
+    datasets: [
+      { label: 'Success', data: {{ source_success_json|safe }}, backgroundColor: '#2E7D32', borderRadius: 2 },
+      { label: 'Failed',  data: {{ source_failed_json|safe }},  backgroundColor: '#D32F2F', borderRadius: 2 },
+    ]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { position: 'top' } },
+    scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }, y: { stacked: true } }
+  }
+});
+</script>
+{% endblock %}

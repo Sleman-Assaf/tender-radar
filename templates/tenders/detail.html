@@ -1,0 +1,699 @@
+{# templates/tenders/detail.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{{ tender.title|truncatechars:55 }} — TenderRadar | AJi{% endblock %}
+{% block eyebrow %}Tender Detail · {{ tender.country.name_en|default:"—" }}{% endblock %}
+{% block page_title %}{{ tender.title }}{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:list' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Back</a>
+<a href="{% url 'tenders:log_portal_click' tender.pk %}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm">{% icon 'external' 14 %} Source Portal</a>
+{% if can_administer %}
+<button onclick="adminToggleAEC({{ tender.pk }}, this)" class="btn btn-outline btn-sm" style="cursor:pointer;" title="Override the AI classification (TenderRadar only)">{% if tender.is_aec %}Mark Not AEC{% else %}Mark AEC{% endif %}</button>
+<button onclick="adminDeleteTender({{ tender.pk }})" class="btn btn-sm" style="background:var(--bad);border-color:var(--bad);color:#fff;cursor:pointer;" title="Delete this tender permanently (admin only)">{% icon 'trash' %}Delete</button>
+<script>
+function _detailCsrf(){const m=document.cookie.match(/csrftoken=([^;]+)/);return m?m[1]:'';}
+function adminDeleteTender(pk){
+  if(!confirm('Delete this tender permanently from the database? This cannot be undone.'))return;
+  fetch(`/tenders/${pk}/delete/`,{method:'POST',headers:{'X-CSRFToken':_detailCsrf(),'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(d=>{if(d.deleted){window.location='{% url "tenders:list" %}';}else{alert(d.error||'Error');}});
+}
+function adminToggleAEC(pk,btn){
+  fetch(`/tenders/${pk}/toggle-aec/`,{method:'POST',headers:{'X-CSRFToken':_detailCsrf(),'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(d=>{if('is_aec' in d){btn.textContent=d.is_aec?'Mark Not AEC':'Mark AEC';window.location.reload();}else{alert(d.error||'Error');}});
+}
+</script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<style>
+  .tdx{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:30px;align-items:start}
+  @media(max-width:900px){.tdx{grid-template-columns:1fr}}
+  .sheet{background:var(--paper-2);border:1px solid var(--line)}
+  .sec{padding:24px 28px;border-top:1px solid var(--line)}
+  .sec:first-child{border-top:none}
+  .slbl{font-size:.64rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+    margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .slbl .l{display:inline-flex;align-items:center;gap:9px}
+  .slbl .l::before{content:"";width:7px;height:7px;background:var(--yellow);flex:none}
+  .slbl .x{font-weight:600;letter-spacing:.05em;color:var(--muted-2);text-transform:none;font-size:.72rem}
+  .ttl-ar{font-family:var(--font-ar);font-size:1.14rem;color:var(--ink-2);direction:rtl;text-align:right;line-height:1.55;margin:2px 0 4px}
+  .tmeta{display:flex;flex-wrap:wrap;gap:14px 30px;margin-top:18px}
+  .tmeta .k{font-size:.56rem;text-transform:uppercase;letter-spacing:.16em;color:var(--muted-2);font-weight:700;margin-bottom:4px}
+  .tmeta .v{font-size:.88rem;font-weight:700;color:var(--ink)}
+  .tmeta .v-ar{font-family:var(--font-ar);font-size:.78rem;color:var(--muted);direction:rtl;text-align:right}
+  .tdesc{line-height:1.78;color:var(--ink-3);font-size:.9rem;white-space:pre-wrap}
+  .tdesc-ar{font-family:var(--font-ar);line-height:1.9;color:var(--muted);font-size:.92rem;direction:rtl;text-align:right;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .side .sblk{padding:20px}
+  .side .sblk+.sblk{border-top:1px solid var(--line)}
+  .qa{display:flex;flex-direction:column;gap:8px}
+  .kd{display:flex;flex-direction:column;gap:15px}
+  .kd .k{font-size:.56rem;color:var(--muted-2);text-transform:uppercase;letter-spacing:.14em;font-weight:700}
+  .kd .v{font-weight:700;margin-top:3px}
+  .val{font-family:var(--font);font-size:1.55rem;font-weight:700;color:var(--ink);letter-spacing:-.02em;line-height:1}
+  .sysinfo{font-size:.74rem;color:var(--muted);display:flex;flex-direction:column;gap:7px}
+  .sysinfo b{color:var(--ink-2);font-weight:700}
+  .note-row+.note-row{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+</style>
+{% block detail_extra_style %}{% endblock %}
+
+<div class="tdx">
+
+  <div class="sheet">
+
+    {% block detail_head %}
+    <div class="sec">
+      <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:{% if tender.title_ar %}14px{% else %}4px{% endif %};">
+        <span class="badge badge-country">{% country_flag tender.country 'sm' %}{{ tender.country.name_en|default:"—" }}</span>
+        <span class="badge badge-cat">{{ tender.get_category_display }}</span>
+        {% if tender.is_aec %}<span class="badge">AEC Related</span>{% endif %}
+        {% if tender.status == 'OPEN' %}<span class="badge badge-open">Open</span>
+        {% elif tender.status == 'CLOSED' %}<span class="badge badge-closed">Closed</span>
+        {% elif tender.status == 'AWARD' %}<span class="badge badge-award">Awarded</span>
+        {% elif tender.status == 'CANCEL' %}<span class="badge badge-cancel">Cancelled</span>{% endif %}
+        {% if tender.days_remaining is not None and tender.days_remaining >= 0 and tender.days_remaining <= 7 %}
+          <span class="badge badge-urgent">{{ tender.days_remaining }} day{{ tender.days_remaining|pluralize }} left</span>
+        {% endif %}
+        {% if is_new %}<span class="badge badge-new">New</span>{% endif %}
+      </div>
+
+      {% if tender.title_ar %}<div class="ttl-ar">{{ tender.title_ar }}</div>{% endif %}
+
+      <div class="tmeta">
+        {% if tender.reference_no %}
+        <div><div class="k">Reference</div><div class="v mono">{{ tender.reference_no }}</div></div>
+        {% endif %}
+        {% if tender.entity %}
+        <div>
+          <div class="k">Issuing entity</div>
+          <div class="v">{{ tender.entity }}</div>
+          {% if tender.entity_ar %}<div class="v-ar">{{ tender.entity_ar }}</div>{% endif %}
+        </div>
+        {% endif %}
+        {% if tender.source %}
+        <div><div class="k">Portal</div><div class="v" style="font-weight:600;color:var(--ink-3);">{{ tender.source.name }}</div></div>
+        {% endif %}
+      </div>
+
+      {% if tender.magazine_meta %}
+      {# News provenance — الأخبار (only on magazine rows) #}
+      <div class="tmeta" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);">
+        <div><div class="k">News Site</div><div class="v" style="font-weight:600;">{{ tender.magazine_meta.magazine_display_en }}</div></div>
+        {% if tender.magazine_meta.listing_url %}
+        <div><div class="k">Listing page</div><div class="v"><a href="{{ tender.magazine_meta.listing_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{% icon 'external' 13 %} Open listing</a></div></div>
+        {% endif %}
+        <div><div class="k">First seen</div><div class="v">{{ tender.magazine_meta.first_seen_at|date:"d M Y · H:i" }}</div></div>
+      </div>
+      {% endif %}
+
+      {% if tender.newspaper_meta %}
+      {# Newspaper Tenders provenance — عطاءات الجريدة (only on newspaper rows) #}
+      <div class="tmeta" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);">
+        <div><div class="k">Newspaper</div><div class="v" style="font-weight:600;">{{ tender.newspaper_meta.edition.source_display_en }}</div></div>
+        <div><div class="k">Edition date</div><div class="v">{{ tender.newspaper_meta.edition.edition_date|date:"d M Y" }}</div></div>
+        <div><div class="k">Page</div><div class="v">{{ tender.newspaper_meta.page_number }}</div></div>
+        {% if tender.newspaper_meta.ai_confidence %}
+        <div><div class="k">AI confidence</div><div class="v mono">{{ tender.newspaper_meta.ai_confidence|floatformat:2 }}</div></div>
+        {% endif %}
+        {% if tender.newspaper_meta.original_pdf_url %}
+        <div><div class="k">Original PDF</div><div class="v"><a href="{{ tender.newspaper_meta.original_pdf_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{% icon 'file' 13 %} Open PDF</a></div></div>
+        {% endif %}
+        {% if tender.newspaper_meta.edition.article_url %}
+        <div><div class="k">Edition article</div><div class="v"><a href="{{ tender.newspaper_meta.edition.article_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{% icon 'external' 13 %} {{ tender.newspaper_meta.edition.source_display_en }} site</a></div></div>
+        {% endif %}
+      </div>
+
+      {% if tender.newspaper_meta.ad_image %}
+      {# The printed ad itself — compact thumbnail; click opens the zoomable popup #}
+      <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:14px;">
+        <a href="#" onclick="openAdPhoto('{{ tender.newspaper_meta.ad_image.url }}'); return false;" title="View tender photo"
+           style="flex:none;display:block;border:1px solid var(--line);background:var(--paper-3);padding:3px;transition:.12s;"
+           onmouseover="this.style.borderColor='var(--ink)'" onmouseout="this.style.borderColor='var(--line)'">
+          <img src="{{ tender.newspaper_meta.ad_image.url }}" alt="Tender ad photo"
+               style="width:96px;height:96px;object-fit:cover;object-position:top;display:block;cursor:zoom-in;"/>
+        </a>
+        <div class="k">Ad Photo</div>
+      </div>
+
+      <style>
+      .adphoto-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:1000;padding:30px}
+      .adphoto-overlay.open{display:flex}
+      .adphoto-box{position:relative;background:var(--paper);padding:10px;max-width:90vw;max-height:90vh;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+      .adphoto-scroll{overflow:auto;max-width:88vw;max-height:80vh}
+      .adphoto-box img{display:block;max-width:86vw;max-height:76vh;width:auto;height:auto}
+      .adphoto-controls{display:flex;gap:6px;justify-content:center;padding:8px 0 2px}
+      .adphoto-zbtn{width:40px;height:30px;background:var(--ink);color:var(--yellow);border:none;font-size:1rem;font-weight:900;cursor:pointer}
+      .adphoto-zbtn.rst{width:auto;padding:0 12px;font-size:.68rem;letter-spacing:.06em}
+      .adphoto-close{position:absolute;top:-14px;right:-14px;width:34px;height:34px;border-radius:50%;background:var(--yellow);color:var(--ink);border:2px solid var(--ink);font-size:1.1rem;font-weight:900;cursor:pointer;line-height:1}
+      </style>
+      <div class="adphoto-overlay" id="adphoto-overlay" onclick="if(event.target===this)closeAdPhoto()">
+        <div class="adphoto-box">
+          <button class="adphoto-close" onclick="closeAdPhoto()" title="Close" aria-label="Close">{% icon 'x' %}</button>
+          <div class="adphoto-controls">
+            <button class="adphoto-zbtn" onclick="adZoomBy(1.25)" title="Zoom in">+</button>
+            <button class="adphoto-zbtn" onclick="adZoomBy(0.8)" title="Zoom out">−</button>
+            <button class="adphoto-zbtn rst" onclick="adZoomReset()" title="Fit to window">{% icon 'refresh' %}RESET</button>
+          </div>
+          <div class="adphoto-scroll">
+            <img id="adphoto-img" src="" alt="Tender photo"/>
+          </div>
+        </div>
+      </div>
+      <script>
+      let adZoom = 1, adBaseW = 0;
+      function openAdPhoto(url){
+        const img = document.getElementById('adphoto-img');
+        adZoom = 1; adBaseW = 0;
+        img.style.width = ''; img.style.maxWidth = ''; img.style.maxHeight = '';
+        img.src = url;
+        document.getElementById('adphoto-overlay').classList.add('open');
+      }
+      function closeAdPhoto(){
+        document.getElementById('adphoto-overlay').classList.remove('open');
+        document.getElementById('adphoto-img').src = '';
+      }
+      function adZoomBy(f){
+        const img = document.getElementById('adphoto-img');
+        if (!adBaseW) adBaseW = img.clientWidth || 400;
+        adZoom = Math.min(6, Math.max(0.4, adZoom * f));
+        img.style.maxWidth = 'none'; img.style.maxHeight = 'none';
+        img.style.width = Math.round(adBaseW * adZoom) + 'px';
+      }
+      function adZoomReset(){
+        const img = document.getElementById('adphoto-img');
+        adZoom = 1; adBaseW = 0;
+        img.style.width = ''; img.style.maxWidth = ''; img.style.maxHeight = '';
+      }
+      document.addEventListener('keydown', e => { if(e.key === 'Escape') closeAdPhoto(); });
+      </script>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endblock %}
+
+    {% block detail_description %}
+    {% if tender.description %}
+    <div class="sec">
+      <div class="slbl"><span class="l">Description</span></div>
+      <div class="tdesc">{{ tender.description }}</div>
+      {% if tender.description_ar %}<div class="tdesc-ar">{{ tender.description_ar }}</div>{% endif %}
+    </div>
+    {% endif %}
+    {% endblock %}
+
+    {% comment %} Was "Internal notes — AJi group only", backed by a single field
+       on the tender that every user shared: you could read a colleague's note
+       and overwrite it by saving. It is now your own notepad, so the label says
+       so and points at Team notes below for anything meant to be shared. {% endcomment %}
+    <div class="sec">
+      <div class="slbl"><span class="l">My notes</span><span class="x">Private to you</span></div>
+      <form method="post" action="{% url 'tenders:detail' tender.pk %}">
+        {% csrf_token %}
+        <textarea name="notes" rows="4" class="form-control" placeholder="Add notes, contacts, follow-up actions…">{{ my_note.body|default:'' }}</textarea>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap;">
+          <button type="submit" name="save_notes" class="btn btn-black btn-sm">{% icon 'save' 14 %} Save notes</button>
+          {% if my_note %}<span style="font-size:.7rem;color:var(--muted-2);">Saved {{ my_note.updated_at|timesince }} ago</span>{% endif %}
+        </div>
+        <p style="font-size:.72rem;color:var(--muted-2);margin-top:9px;line-height:1.6;">
+          Only you can see these. To share something about this tender, use
+          <strong>Send to team</strong> or post under <a href="#team-notes">Team notes</a>.
+        </p>
+      </form>
+    </div>
+
+    {% block detail_lifecycle %}
+    <div class="sec">
+      <div class="slbl"><span class="l">Tender lifecycle</span></div>
+      <div style="overflow-x:auto;">
+        {% with s1_done=tender.publication_date s2_date=tender.scraped_at s3_done=tender.is_relevant s4_done=tender.is_aec s5_done=is_bookmarked s6_date=tender.submission_deadline %}
+        <div style="position:relative;min-width:480px;padding-top:4px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:.55rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-2);text-align:center;width:60px;">Source</span>
+            <span style="font-size:.55rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-2);text-align:center;flex:1;">Discovery</span>
+            <span style="font-size:.55rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-2);text-align:center;flex:1;">Evaluation</span>
+            <span style="font-size:.55rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-2);text-align:center;width:60px;">Deadline</span>
+          </div>
+          <div style="position:relative;height:36px;display:flex;align-items:center;">
+            <div style="position:absolute;left:30px;right:30px;height:3px;background:var(--line-2);z-index:0;"></div>
+            {% if s1_done %}
+            <div style="position:absolute;left:30px;width:{% if s4_done %}calc(100% - 60px){% elif s3_done %}62%{% else %}30%{% endif %};height:3px;background:var(--ink);z-index:1;"></div>
+            {% endif %}
+            {% if s5_done %}<div style="position:absolute;left:62%;right:30px;height:3px;background:var(--ink-2);z-index:2;"></div>{% endif %}
+            <div style="position:absolute;left:0;z-index:10;display:flex;flex-direction:column;align-items:center;width:60px;">
+              <div style="width:20px;height:20px;border-radius:50%;border:2px solid {% if s1_done %}var(--ink){% else %}var(--line-2){% endif %};background:{% if s1_done %}var(--ink){% else %}var(--paper-2){% endif %};display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#fff;font-weight:700;">{% if s1_done %}✓{% else %}○{% endif %}</div>
+            </div>
+            <div style="position:absolute;left:calc(20% - 10px);z-index:10;width:20px;">
+              <div style="width:20px;height:20px;border-radius:50%;border:2px solid var(--ink);background:var(--ink);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#fff;font-weight:700;">✓</div>
+            </div>
+            <div style="position:absolute;left:calc(40% - 10px);z-index:10;width:20px;">
+              <div style="width:20px;height:20px;border-radius:50%;border:2px solid {% if s3_done %}var(--ink){% else %}var(--line-2){% endif %};background:{% if s3_done %}var(--ink){% else %}var(--paper-2){% endif %};display:flex;align-items:center;justify-content:center;font-size:.6rem;color:{% if s3_done %}#fff{% else %}var(--muted-2){% endif %};font-weight:700;">{% if s3_done %}✓{% else %}○{% endif %}</div>
+            </div>
+            <div style="position:absolute;left:calc(60% - 10px);z-index:10;width:20px;">
+              <div style="width:20px;height:20px;border-radius:50%;border:2px solid {% if s4_done %}var(--ink-2){% else %}var(--line-2){% endif %};background:{% if s4_done %}var(--ink-2){% else %}var(--paper-2){% endif %};display:flex;align-items:center;justify-content:center;font-size:.6rem;color:{% if s4_done %}#fff{% else %}var(--muted-2){% endif %};font-weight:700;">{% if s4_done %}✓{% else %}○{% endif %}</div>
+            </div>
+            <div style="position:absolute;left:calc(78% - 10px);z-index:10;width:20px;">
+              <div style="width:20px;height:20px;border-radius:50%;border:2px solid {% if s5_done %}var(--ink-2){% else %}var(--line-2){% endif %};background:{% if s5_done %}var(--ink-2){% else %}var(--paper-2){% endif %};display:flex;align-items:center;justify-content:center;font-size:.6rem;color:{% if s5_done %}#fff{% else %}var(--muted-2){% endif %};font-weight:700;">{% if s5_done %}★{% else %}○{% endif %}</div>
+            </div>
+            <div style="position:absolute;left:calc(90% - 10px);z-index:10;width:20px;">
+              <div style="width:20px;height:20px;border-radius:50%;border:2px solid {% if tender.aec_feedbacks.all %}var(--ink-2){% else %}var(--line-2){% endif %};background:{% if tender.aec_feedbacks.all %}var(--ink-2){% else %}var(--paper-2){% endif %};display:flex;align-items:center;justify-content:center;font-size:.6rem;color:{% if tender.aec_feedbacks.all %}#fff{% else %}var(--muted-2){% endif %};font-weight:700;">{% if tender.aec_feedbacks.all %}{% if tender.aec_feedbacks.all.0.vote == 'UP' %}{% icon 'thumbs-up' 11 %}{% else %}{% icon 'thumbs-down' 11 %}{% endif %}{% else %}○{% endif %}</div>
+            </div>
+            <div style="position:absolute;right:0;z-index:10;display:flex;flex-direction:column;align-items:center;width:60px;">
+              <div style="width:20px;height:20px;border-radius:50%;border:2px solid {% if tender.is_expired %}var(--bad){% elif s6_date %}var(--ink-2){% else %}var(--line-2){% endif %};background:{% if tender.is_expired %}var(--bad){% elif s6_date %}var(--paper-2){% else %}var(--paper-2){% endif %};display:flex;align-items:center;justify-content:center;font-size:.6rem;color:{% if tender.is_expired %}#fff{% elif s6_date %}var(--ink-2){% else %}var(--muted-2){% endif %};font-weight:700;">{% if tender.is_expired %}✕{% elif s6_date %}!{% else %}○{% endif %}</div>
+            </div>
+          </div>
+          <div style="position:relative;margin-top:6px;height:42px;">
+            <div style="position:absolute;left:0;width:60px;text-align:center;">
+              <div style="font-size:.62rem;font-weight:700;color:{% if s1_done %}var(--ink){% else %}var(--grey-3){% endif %};">Published</div>
+              <div style="font-size:.58rem;color:var(--muted-2);margin-top:1px;">{{ tender.publication_date|date:"d M Y"|default:"—" }}</div>
+            </div>
+            <div style="position:absolute;left:calc(20% - 30px);width:60px;text-align:center;">
+              <div style="font-size:.62rem;font-weight:700;color:var(--ink);">Discovered</div>
+              <div style="font-size:.58rem;color:var(--muted-2);margin-top:1px;">{{ tender.scraped_at|date:"d M Y" }}</div>
+            </div>
+            <div style="position:absolute;left:calc(40% - 30px);width:60px;text-align:center;">
+              <div style="font-size:.62rem;font-weight:700;color:{% if s3_done %}var(--ink){% else %}var(--grey-3){% endif %};">Filtered</div>
+              <div style="font-size:.58rem;color:var(--muted-2);margin-top:1px;">{% if s3_done %}Relevant{% else %}Pending{% endif %}</div>
+            </div>
+            <div style="position:absolute;left:calc(60% - 30px);width:60px;text-align:center;">
+              <div style="font-size:.62rem;font-weight:700;color:{% if s4_done %}var(--ink-2){% else %}var(--grey-3){% endif %};">AEC match</div>
+              <div style="font-size:.58rem;color:var(--muted-2);margin-top:1px;">{% if s4_done %}AEC{% else %}Not AEC{% endif %}</div>
+            </div>
+            <div style="position:absolute;left:calc(78% - 30px);width:60px;text-align:center;">
+              <div style="font-size:.62rem;font-weight:700;color:{% if s5_done %}var(--ink-2){% else %}var(--grey-3){% endif %};">Bookmarked</div>
+              <div style="font-size:.58rem;color:var(--muted-2);margin-top:1px;">{% if s5_done %}Saved{% else %}Not saved{% endif %}</div>
+            </div>
+            <div style="position:absolute;left:calc(90% - 30px);width:60px;text-align:center;">
+              <div style="font-size:.62rem;font-weight:700;color:{% if tender.aec_feedbacks.all %}var(--ink-2){% else %}var(--grey-3){% endif %};">Evaluated</div>
+              <div style="font-size:.58rem;color:var(--muted-2);margin-top:1px;">{% if tender.aec_feedbacks.all %}{% if tender.aec_feedbacks.all.0.vote == 'UP' %}Accurate{% else %}Not AEC{% endif %}{% else %}No feedback{% endif %}</div>
+            </div>
+            <div style="position:absolute;right:0;width:60px;text-align:center;">
+              <div style="font-size:.62rem;font-weight:700;color:{% if tender.is_expired %}var(--bad){% elif s6_date %}var(--ink-2){% else %}var(--grey-3){% endif %};">Deadline</div>
+              <div style="font-size:.58rem;color:var(--muted-2);margin-top:1px;">{{ tender.submission_deadline|date:"d M Y"|default:"—" }}</div>
+            </div>
+          </div>
+        </div>
+        {% endwith %}
+      </div>
+    </div>
+    {% endblock %}
+
+    <div class="sec" id="team-notes">
+      <div class="slbl"><span class="l">Team notes</span><span class="x">Shared with your team</span></div>
+
+      {% for note in tender.team_notes.all %}
+      <div class="note-row" style="display:flex;gap:11px;">
+        <span class="ava" title="{{ note.author.get_full_name|default:note.author.username }}">
+          {% if note.author.profile.avatar %}<img src="{{ avatar_base }}{{ note.author.profile.avatar }}" alt="">{% else %}{{ note.author.username|first|upper }}{% endif %}
+        </span>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+            <span style="font-weight:700;font-size:.82rem;">{{ note.author.get_full_name|default:note.author.username }}</span>
+            <span style="font-size:.7rem;color:var(--muted-2);">{{ note.created_at|date:"d M Y H:i" }}</span>
+            {% if note.team %}<span class="badge badge-cat">{% icon 'users' 11 %} {{ note.team.name }}</span>{% endif %}
+            {% if note.author == request.user %}
+            <form method="post" action="{% url 'tenders:delete_note' note.pk %}" style="margin-left:auto;" onsubmit="return confirm('Delete this note?');">
+              {% csrf_token %}
+              <button type="submit" style="background:none;border:none;cursor:pointer;font-size:.72rem;color:var(--grey-3);" title="Delete">{% icon 'x' 14 %}</button>
+            </form>
+            {% endif %}
+          </div>
+          <div style="font-size:.84rem;color:var(--ink-2);line-height:1.7;white-space:pre-wrap;">{{ note.body|highlight_mentions }}</div>
+        </div>
+      </div>
+      {% empty %}
+      <div style="color:var(--muted-2);font-size:.82rem;padding:4px 0 14px;">No team notes yet — be the first to share an observation.</div>
+      {% endfor %}
+
+      {% if user_teams %}
+      <form method="post" action="{% url 'tenders:post_note' tender.pk %}" id="noteForm"
+            style="margin-top:18px;padding-top:18px;border-top:1px solid var(--line);">
+        {% csrf_token %}
+        <input type="hidden" name="team_id" id="noteTeamId" value="{% if user_teams|length == 1 %}{{ user_teams.0.pk }}{% endif %}">
+
+        <div class="mini-lbl" style="margin-bottom:7px;">1 · Post to team</div>
+        <div id="noteTeamRow" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;">
+          {% for team in user_teams %}
+          <button type="button" class="note-team{% if user_teams|length == 1 %} on{% endif %}" data-team="{{ team.pk }}" onclick="selectNoteTeam(this)">
+            <span class="team-avatar {% cycle '' 'alt' %}" style="width:24px;height:24px;font-size:.72rem;">{{ team.name|first|upper }}</span>
+            <span class="nt-name">{{ team.name }}</span>
+          </button>
+          {% endfor %}
+        </div>
+
+        <div class="mini-lbl" style="margin-bottom:7px;">2 · Write a note <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted-2);">— type @ to tag a teammate</span></div>
+        <div style="position:relative;margin-bottom:12px;">
+          <textarea id="teamNoteBody" name="team_note_body" rows="3" class="form-control"
+            placeholder="Share a note with your team…" autocomplete="off"
+            {% if user_teams|length > 1 %}disabled{% endif %}
+            style="resize:vertical;font-size:.84rem;width:100%;"></textarea>
+          <div id="mentionBox" class="mention-box" role="listbox"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <button type="submit" class="btn btn-black btn-sm" id="noteSubmit" {% if user_teams|length > 1 %}disabled{% endif %}>{% icon 'message' 14 %} Share note</button>
+          <span id="noteHint" style="font-size:.74rem;color:var(--muted-2);">{% if user_teams|length > 1 %}Choose a team above to start writing.{% else %}Tagging is limited to <b>{{ user_teams.0.name }}</b> members.{% endif %}</span>
+        </div>
+      </form>
+      {% else %}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+        <span style="font-size:.8rem;color:var(--muted);">
+          <a href="{% url 'tenders:my_teams' %}" style="color:var(--ink);font-weight:700;text-decoration:underline;">Join or create a team</a>
+          to share notes and tag colleagues.
+        </span>
+      </div>
+      {% endif %}
+
+      {{ teams_json|json_script:"teamsData" }}
+      <script>
+      (function(){
+        var ta = document.getElementById('teamNoteBody');
+        var box = document.getElementById('mentionBox');
+        var hidden = document.getElementById('noteTeamId');
+        if(!ta || !box) return;
+
+        var AV_BASE = {{ avatar_base|to_json }};
+        var TEAMS = [];
+        try { TEAMS = JSON.parse(document.getElementById('teamsData').textContent) || []; } catch(e){}
+        function teamById(id){ for(var i=0;i<TEAMS.length;i++){ if(String(TEAMS[i].id)===String(id)) return TEAMS[i]; } return null; }
+        function currentMembers(){ var t = teamById(hidden.value); return t ? t.members : []; }
+
+        window.selectNoteTeam = function(btn){
+          document.querySelectorAll('#noteTeamRow .note-team').forEach(function(b){ b.classList.remove('on'); });
+          btn.classList.add('on');
+          hidden.value = btn.getAttribute('data-team');
+          ta.disabled = false;
+          document.getElementById('noteSubmit').disabled = false;
+          var t = teamById(hidden.value);
+          var hint = document.getElementById('noteHint');
+          if(hint && t){ hint.innerHTML = 'Tagging is limited to <b>'+escapeHtml(t.name)+'</b> members ('+t.members.length+').'; }
+          ta.focus();
+        };
+
+        function escapeHtml(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+        var active = -1, items = [], anchor = -1;
+
+        function tokenAt(){
+          var pos = ta.selectionStart;
+          var m = ta.value.slice(0, pos).match(/@([A-Za-z0-9_.\-]*)$/);
+          if(!m) return null;
+          return { start: pos - m[0].length, query: m[1].toLowerCase() };
+        }
+        function close(){ box.style.display='none'; items=[]; active=-1; anchor=-1; }
+        function avaHtml(u){
+          return u.av
+            ? '<span class="ava ava-sm"><img src="'+AV_BASE+escapeHtml(u.av)+'" alt=""></span>'
+            : '<span class="ava ava-sm">'+escapeHtml((u.n||u.u).charAt(0).toUpperCase())+'</span>';
+        }
+        function render(tok){
+          if(!hidden.value){
+            box.innerHTML = '<div class="mention-note">Choose a team first to tag its members.</div>';
+            box.style.display='block'; items=[]; return;
+          }
+          var q = tok.query;
+          var matched = currentMembers().filter(function(u){
+            return u.u.toLowerCase().indexOf(q)!==-1 || (u.n||'').toLowerCase().indexOf(q)!==-1;
+          }).slice(0, 8);
+          if(!matched.length){
+            box.innerHTML = '<div class="mention-empty">No matching teammate in this team.</div>';
+            box.style.display='block'; items=[]; return;
+          }
+          items = matched; active = 0; anchor = tok.start;
+          box.innerHTML = matched.map(function(u, i){
+            return '<div class="mention-opt" data-i="'+i+'" role="option" aria-selected="'+(i===0)+'">'+
+              avaHtml(u)+'<span><span class="mo-name">'+escapeHtml(u.n)+'</span> '+
+              '<span class="mo-handle">@'+escapeHtml(u.u)+'</span></span></div>';
+          }).join('');
+          box.style.display='block';
+        }
+        function paint(){
+          Array.prototype.forEach.call(box.children, function(c,i){ c.setAttribute('aria-selected', i===active); });
+        }
+        function choose(i){
+          var u = items[i]; if(!u) return;
+          var pos = ta.selectionStart;
+          ta.value = ta.value.slice(0, anchor) + '@' + u.u + ' ' + ta.value.slice(pos);
+          var np = anchor + u.u.length + 2;
+          ta.setSelectionRange(np, np); ta.focus(); close();
+        }
+        ta.addEventListener('input', function(){ var tok = tokenAt(); if(tok) render(tok); else close(); });
+        ta.addEventListener('keydown', function(e){
+          if(box.style.display!=='block' || !items.length) return;
+          if(e.key==='ArrowDown'){ e.preventDefault(); active=(active+1)%items.length; paint(); }
+          else if(e.key==='ArrowUp'){ e.preventDefault(); active=(active-1+items.length)%items.length; paint(); }
+          else if(e.key==='Enter' || e.key==='Tab'){ e.preventDefault(); choose(active); }
+          else if(e.key==='Escape'){ close(); }
+        });
+        box.addEventListener('mousedown', function(e){
+          var opt = e.target.closest('.mention-opt'); if(!opt) return;
+          e.preventDefault(); choose(parseInt(opt.getAttribute('data-i'),10));
+        });
+        document.addEventListener('click', function(e){ if(e.target!==ta && !box.contains(e.target)) close(); });
+      })();
+      </script>
+    </div>
+  </div>
+
+  <div class="sheet side">
+
+    {% block detail_actions %}
+    <div class="sblk">
+      <div class="slbl"><span class="l">Quick actions</span></div>
+      <div class="qa">
+        <button id="bookmark-btn" onclick="toggleBookmark({{ tender.pk }}, this)"
+          class="btn {% if is_bookmarked %}btn-yellow{% else %}btn-outline{% endif %}" style="justify-content:center;width:100%;">
+          {% icon 'bookmark' 15 %} {% if is_bookmarked %}Bookmarked{% else %}Bookmark{% endif %}
+        </button>
+        <button type="button" onclick="openShareModal()" class="btn btn-black" style="justify-content:center;width:100%;">{% icon 'users' 15 %} Send to team</button>
+        <a href="{% url 'tenders:log_portal_click' tender.pk %}" target="_blank" rel="noopener noreferrer" class="btn btn-outline" style="justify-content:center;">{% icon 'external' 14 %} Open source portal</a>
+        <a href="{% url 'tenders:list' %}?country={{ tender.country.code }}" class="btn btn-ghost" style="justify-content:center;">{% icon 'globe' 14 %} More from {{ tender.country.name_en|default:"country" }}</a>
+        <a href="{% url 'tenders:list' %}?category={{ tender.category }}" class="btn btn-ghost" style="justify-content:center;">{% icon 'ruler' 14 %} More {{ tender.get_category_display|lower }}</a>
+      </div>
+
+      {% if tender.is_aec %}
+      <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:15px;">
+        <div class="mini-lbl" style="margin-bottom:6px;">AEC classification</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:11px;line-height:1.5;">Is this tender correctly classified as AEC-relevant?</div>
+        <div style="display:flex;gap:8px;">
+          <button id="aec-up-btn" onclick="submitAECFeedback({{ tender.pk }}, 'UP', this)"
+            class="btn {% if user_aec_vote == 'UP' %}btn-green{% else %}btn-outline{% endif %}" style="flex:1;justify-content:center;gap:6px;">
+            {% icon 'thumbs-up' 15 %} Yes <span id="aec-up-count" style="font-weight:900;">{{ aec_up_count }}</span>
+          </button>
+          <button id="aec-down-btn" onclick="submitAECFeedback({{ tender.pk }}, 'DOWN', this)"
+            class="btn {% if user_aec_vote == 'DOWN' %}btn-red{% else %}btn-outline{% endif %}" style="flex:1;justify-content:center;gap:6px;">
+            {% icon 'thumbs-down' 15 %} No <span id="aec-down-count" style="font-weight:900;">{{ aec_down_count }}</span>
+          </button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endblock %}
+
+    {% block detail_keydates %}
+    <div class="sblk">
+      <div class="slbl"><span class="l">Key dates</span></div>
+      <div class="kd">
+        {% if tender.publication_date %}
+        <div><div class="k">Published</div><div class="v">{{ tender.publication_date|date:"d M Y" }}</div></div>
+        {% endif %}
+        {% if tender.submission_deadline %}
+        <div>
+          <div class="k">Submission deadline</div>
+          <div class="v" style="font-size:1.05rem;{% if tender.is_expired %}color:var(--muted);{% endif %}">{{ tender.submission_deadline|date:"d M Y" }}</div>
+          {% if not tender.is_expired and tender.days_remaining is not None %}
+            <div style="font-size:.72rem;margin-top:3px;font-weight:700;color:{% if tender.days_remaining <= 7 %}var(--bad){% else %}var(--muted){% endif %};">
+              {% if tender.days_remaining == 0 %}Due today{% else %}{{ tender.days_remaining }} day{{ tender.days_remaining|pluralize }} remaining{% endif %}
+            </div>
+          {% elif tender.is_expired %}
+            <div style="font-size:.72rem;color:var(--muted);margin-top:3px;">Deadline passed</div>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% if tender.opening_date %}
+        <div><div class="k">Bids opening</div><div class="v">{{ tender.opening_date|date:"d M Y" }}</div></div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if tender.estimated_value or tender.currency %}
+    <div class="sblk">
+      <div class="slbl"><span class="l">Estimated value</span></div>
+      <div class="val">{{ tender.estimated_value|format_value:tender.currency }}</div>
+      {% if tender.currency %}<div style="font-size:.72rem;color:var(--muted);margin-top:4px;font-weight:700;">{{ tender.currency }}</div>{% endif %}
+    </div>
+    {% endif %}
+    {% endblock %}
+
+    <div class="sblk">
+      <div class="slbl"><span class="l">System info</span></div>
+      <div class="sysinfo">
+        <div><b>Scraped:</b> {{ tender.scraped_at|date:"d M Y H:i" }}</div>
+        <div><b>Updated:</b> {{ tender.updated_at|date:"d M Y H:i" }}</div>
+        {% if tender.external_id %}<div><b>External ID:</b> {{ tender.external_id|truncatechars:28 }}</div>{% endif %}
+        <div><b>DB ID:</b> #{{ tender.pk }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="shareModal" onclick="if(event.target===this)closeShareModal()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+    <div class="modal-head">
+      <h3 id="shareTitle">Send to team</h3>
+      <button class="modal-x" type="button" onclick="closeShareModal()" aria-label="Close">{% icon 'x' 16 %}</button>
+    </div>
+    <div class="modal-body">
+      <div id="shareStep1">
+        <p style="font-size:.8rem;color:var(--muted);margin:0 0 14px;line-height:1.5;">Pick a team — everyone in it will be notified with a link to this tender.</p>
+        <div class="mini-lbl" style="margin-bottom:8px;">Choose a team</div>
+        <div class="team-pick" id="sharePick"></div>
+      </div>
+      <div id="shareStep2" style="display:none;">
+        <button type="button" onclick="shareBack()" style="display:inline-flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;font-size:.74rem;font-weight:700;color:var(--ink-2);padding:0;margin-bottom:14px;">
+          {% icon 'arrow-left' 13 %} <span>Sending to <b id="shareTeamName" style="color:var(--ink);"></b> — change</span>
+        </button>
+        <div class="mini-lbl" style="margin-bottom:7px;">Add a note <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted-2);">— type @ to tag a teammate</span></div>
+        <div style="position:relative;margin-bottom:14px;">
+          <textarea id="shareComment" class="form-control" rows="3" placeholder="Write a note for the team…" autocomplete="off" style="font-size:.84rem;resize:vertical;width:100%;"></textarea>
+          <div id="shareMentionBox" class="mention-box" role="listbox"></div>
+        </div>
+        <button type="button" class="btn btn-black btn-sm" id="shareSend" onclick="doShareSend()" style="width:100%;justify-content:center;">{% icon 'users' 14 %} Send to <span id="shareSendName" style="margin-left:4px;"></span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Send to Team ────────────────────────────────────────────────────────────
+var _sharing = false, _shareTeamId = null, _shareMembers = [], _shareWired = false;
+var SHARE_AV_BASE = {{ avatar_base|to_json }};
+function _shareTeams(){ try { return JSON.parse(document.getElementById('teamsData').textContent) || []; } catch(e){ return []; } }
+function _escH(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+function openShareModal(){
+  var modal = document.getElementById('shareModal');
+  document.body.appendChild(modal);   // escape any transformed ancestor → dims the whole page & centers in the viewport
+  var teams = _shareTeams();
+  var pick  = document.getElementById('sharePick');
+  var lbl   = document.querySelector('#shareStep1 .mini-lbl');
+  document.getElementById('shareStep1').style.display = '';
+  document.getElementById('shareStep2').style.display = 'none';
+  document.getElementById('shareComment').value = '';
+  if(!teams.length){
+    if(lbl) lbl.style.display = 'none';
+    pick.innerHTML = '<p style="font-size:.82rem;color:var(--muted);line-height:1.5;margin:0;">You are not in any team yet. '+
+      '<a href="{% url 'tenders:my_teams' %}" style="color:var(--ink);font-weight:700;text-decoration:underline;">Join or create a team</a> first.</p>';
+  } else {
+    if(lbl) lbl.style.display = '';
+    pick.innerHTML = teams.map(function(t,i){
+      var n = t.members.length;
+      return '<button type="button" class="team-chip" onclick="shareSelectTeam('+t.id+')">'+
+        '<span class="team-avatar '+(i%2?'alt':'')+'">'+_escH((t.name||'?').charAt(0).toUpperCase())+'</span>'+
+        '<span class="tc-body"><span class="tc-name">'+_escH(t.name)+'</span>'+
+        '<span class="tc-meta">'+n+' member'+(n===1?'':'s')+' will be notified</span></span>'+
+        '<span class="tc-go" aria-hidden="true">{% icon 'arrow-right' 16 %}</span></button>';
+    }).join('');
+  }
+  if(!_shareWired){
+    wireMentions(document.getElementById('shareComment'), document.getElementById('shareMentionBox'),
+                 function(){ return _shareMembers; }, SHARE_AV_BASE);
+    _shareWired = true;
+  }
+  _sharing = false;
+  modal.classList.add('open');
+}
+function shareSelectTeam(id){
+  var teams = _shareTeams(), t = null;
+  for(var i=0;i<teams.length;i++){ if(String(teams[i].id)===String(id)){ t = teams[i]; break; } }
+  if(!t) return;
+  _shareTeamId = t.id; _shareMembers = t.members || [];
+  document.getElementById('shareTeamName').textContent = t.name;
+  document.getElementById('shareSendName').textContent = t.name;
+  document.getElementById('shareStep1').style.display = 'none';
+  document.getElementById('shareStep2').style.display = '';
+  setTimeout(function(){ document.getElementById('shareComment').focus(); }, 40);
+}
+function shareBack(){
+  document.getElementById('shareStep2').style.display = 'none';
+  document.getElementById('shareStep1').style.display = '';
+}
+function closeShareModal(){ document.getElementById('shareModal').classList.remove('open'); }
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeShareModal(); });
+function doShareSend(){
+  if(_sharing || !_shareTeamId) return; _sharing = true;
+  var btn = document.getElementById('shareSend'); btn.disabled = true;
+  var comment = document.getElementById('shareComment').value || '';
+  var fd = new FormData(); fd.append('team_id', _shareTeamId); fd.append('note', comment);
+  fetch('{% url 'tenders:share_to_team' tender.pk %}', {
+    method:'POST', headers:{'X-CSRFToken':getCsrf(),'X-Requested-With':'XMLHttpRequest'}, body:fd
+  }).then(function(r){ return r.json(); }).then(function(d){
+    closeShareModal();
+    if(d.ok){ showToast('Sent to '+d.team+' — '+d.recipients+' notified', 'success'); setTimeout(function(){ location.reload(); }, 900); }
+    else { _sharing=false; btn.disabled=false; showToast(d.error || 'Could not send', 'error'); }
+  }).catch(function(){ _sharing=false; btn.disabled=false; showToast('Could not send to team', 'error'); });
+}
+
+// Reusable @mention autocomplete (Send-to-team note box; scoped to the chosen team)
+function wireMentions(ta, box, membersFn, avBase){
+  if(!ta || !box) return;
+  var active=-1, items=[], anchor=-1;
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function tokenAt(){ var pos=ta.selectionStart; var m=ta.value.slice(0,pos).match(/@([A-Za-z0-9_.\-]*)$/); if(!m) return null; return {start:pos-m[0].length, query:m[1].toLowerCase()}; }
+  function close(){ box.style.display='none'; items=[]; active=-1; anchor=-1; }
+  function ava(u){ return u.av ? '<span class="ava ava-sm"><img src="'+avBase+esc(u.av)+'" alt=""></span>' : '<span class="ava ava-sm">'+esc((u.n||u.u).charAt(0).toUpperCase())+'</span>'; }
+  function render(tok){
+    var mem = membersFn() || [];
+    var matched = mem.filter(function(u){ return u.u.toLowerCase().indexOf(tok.query)!==-1 || (u.n||'').toLowerCase().indexOf(tok.query)!==-1; }).slice(0,8);
+    if(!matched.length){ box.innerHTML='<div class="mention-empty">No matching teammate.</div>'; box.style.display='block'; items=[]; return; }
+    items=matched; active=0; anchor=tok.start;
+    box.innerHTML = matched.map(function(u,i){ return '<div class="mention-opt" data-i="'+i+'" role="option" aria-selected="'+(i===0)+'">'+ava(u)+'<span><span class="mo-name">'+esc(u.n)+'</span> <span class="mo-handle">@'+esc(u.u)+'</span></span></div>'; }).join('');
+    box.style.display='block';
+  }
+  function paint(){ Array.prototype.forEach.call(box.children,function(c,i){ c.setAttribute('aria-selected', i===active); }); }
+  function choose(i){ var u=items[i]; if(!u) return; var pos=ta.selectionStart; ta.value=ta.value.slice(0,anchor)+'@'+u.u+' '+ta.value.slice(pos); var np=anchor+u.u.length+2; ta.setSelectionRange(np,np); ta.focus(); close(); }
+  ta.addEventListener('input', function(){ var tok=tokenAt(); if(tok) render(tok); else close(); });
+  ta.addEventListener('keydown', function(e){ if(box.style.display!=='block'||!items.length) return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); active=(active+1)%items.length; paint(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); active=(active-1+items.length)%items.length; paint(); }
+    else if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); choose(active); }
+    else if(e.key==='Escape'){ close(); } });
+  box.addEventListener('mousedown', function(e){ var opt=e.target.closest('.mention-opt'); if(!opt) return; e.preventDefault(); choose(parseInt(opt.getAttribute('data-i'),10)); });
+  document.addEventListener('click', function(e){ if(e.target!==ta && !box.contains(e.target)) close(); });
+}
+
+function toggleBookmark(pk, btn) {
+  fetch(`/tenders/${pk}/bookmark/`, {method:'POST',headers:{'X-CSRFToken':getCsrf(),'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(data=>{
+      var bm='<svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> ';
+      if (data.bookmarked) { btn.innerHTML=bm+'Bookmarked'; btn.className='btn btn-yellow'; }
+      else { btn.innerHTML=bm+'Bookmark'; btn.className='btn btn-outline'; }
+      btn.style.justifyContent='center'; btn.style.width='100%';
+      showToast(data.bookmarked ? 'Bookmarked' : 'Removed', 'success');
+    });
+}
+
+function submitAECFeedback(pk, vote, clickedBtn) {
+  const csrf = getCsrf();
+  const fd = new FormData();
+  fd.append('vote', vote);
+  fetch(`/tenders/${pk}/aec-feedback/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+    body: fd,
+  })
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('aec-up-count').textContent   = data.ups;
+    document.getElementById('aec-down-count').textContent = data.downs;
+    const upBtn   = document.getElementById('aec-up-btn');
+    const downBtn = document.getElementById('aec-down-btn');
+    if (data.vote === 'UP') { upBtn.className = 'btn btn-green'; downBtn.className = 'btn btn-outline'; }
+    else { downBtn.className = 'btn btn-red'; upBtn.className = 'btn btn-outline'; }
+    showToast(data.vote === 'UP' ? 'Thanks for your feedback' : 'Feedback recorded', 'success');
+  })
+  .catch(() => showToast('Error submitting feedback', 'error'));
+}
+</script>
+{% endblock %}

@@ -1,0 +1,11 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TenderRadar">
+  <circle cx="50" cy="50" r="50" fill="#FFFFFF"/>
+  <g fill="none" stroke="#0F0F0D">
+    <circle cx="50" cy="50" r="42" stroke-width="8"/>
+    <circle cx="50" cy="50" r="29" stroke-width="7"/>
+    <circle cx="50" cy="50" r="16" stroke-width="6"/>
+  </g>
+  <path d="M50 50 L32.75 83.86 L16.14 67.25 Z" fill="#FCD700"/>
+  <path d="M50 50 L23.13 76.87 L16.14 67.25 Z" fill="#E4C200"/>
+  <circle cx="50" cy="50" r="4.5" fill="#0F0F0D"/>
+</svg>

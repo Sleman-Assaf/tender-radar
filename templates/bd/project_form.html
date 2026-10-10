@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{% if project %}Edit{% else %}Add{% endif %} Project — TenderRadar{% endblock %}
+{% block page_title %}{% if project %}Edit Project{% else %}Add Historical Project{% endif %}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'bd:project_list' %}" class="btn btn-ghost btn-sm">{% icon 'project' %}Projects</a>
+{% endblock %}
+
+{% block content %}
+<style>
+  .bd-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 18px;}
+  .bd-field label{display:block;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;}
+  .bd-field input,.bd-field select,.bd-field textarea{width:100%;padding:8px 10px;border:1px solid #ddd;font-family:inherit;font-size:.85rem;}
+  .bd-field textarea{min-height:90px;resize:vertical;}
+</style>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="card"><div style="padding:20px;">
+    <div class="bd-grid">
+      <div class="bd-field" style="grid-column:1/-1;"><label>Project Name *</label>
+        <input name="name" value="{{ project.name|default:'' }}" required></div>
+      <div class="bd-field"><label>Project Code</label><input name="code" value="{{ project.code|default:'' }}"></div>
+      <div class="bd-field"><label>Client</label><input name="client" value="{{ project.client|default:'' }}"></div>
+      <div class="bd-field"><label>Sector</label>
+        <select name="sector">
+          {% for code,label in sectors %}<option value="{{ code }}" {% if project.sector == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></div>
+      <div class="bd-field"><label>Status</label>
+        <select name="status">
+          {% for code,label in statuses %}<option value="{{ code }}" {% if project.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></div>
+      <div class="bd-field"><label>City</label><input name="city" value="{{ project.city|default:'' }}"></div>
+      <div class="bd-field"><label>Country</label><input name="country" value="{{ project.country|default:'' }}"></div>
+      <div class="bd-field"><label>Start (Year / raw)</label>
+        <div style="display:flex;gap:6px;">
+          <input type="number" name="start_year" value="{{ project.start_year|default:'' }}" placeholder="2015" style="width:90px;">
+          <input name="start_raw" value="{{ project.start_raw|default:'' }}" placeholder="Jan, 2015">
+        </div></div>
+      <div class="bd-field"><label>End (Year / raw)</label>
+        <div style="display:flex;gap:6px;">
+          <input type="number" name="end_year" value="{{ project.end_year|default:'' }}" placeholder="2016" style="width:90px;">
+          <input name="end_raw" value="{{ project.end_raw|default:'' }}" placeholder="2016">
+        </div></div>
+      <div class="bd-field"><label>Site Area</label><input name="site_area" value="{{ project.site_area|default:'' }}"></div>
+      <div class="bd-field"><label>BUA</label><input name="bua" value="{{ project.bua|default:'' }}"></div>
+      <div class="bd-field" style="grid-column:1/-1;"><label>Partners</label><input name="partners" value="{{ project.partners|default:'' }}"></div>
+      <div class="bd-field" style="grid-column:1/-1;"><label>Description</label><textarea name="description">{{ project.description|default:'' }}</textarea></div>
+      <div class="bd-field" style="grid-column:1/-1;"><label>Services Provided</label><textarea name="services">{{ project.services|default:'' }}</textarea></div>
+
+      <div class="bd-field"><label>Project Value (USD)</label><input name="project_value" value="{{ project.project_value|default:'' }}"></div>
+      <div class="bd-field"><label>Design (USD)</label><input name="design_value" value="{{ project.design_value|default:'' }}"></div>
+      <div class="bd-field"><label>Supervision (USD)</label><input name="spv_value" value="{{ project.spv_value|default:'' }}"></div>
+      <div class="bd-field"><label>PMO (USD)</label><input name="pmo_value" value="{{ project.pmo_value|default:'' }}"></div>
+      <div class="bd-field"><label>Studies (USD)</label><input name="studies_value" value="{{ project.studies_value|default:'' }}"></div>
+      <div class="bd-field"><label>Others (USD)</label><input name="others_value" value="{{ project.others_value|default:'' }}"></div>
+      <div class="bd-field"><label>Staff-Months (MM)</label><input name="staff_months" value="{{ project.staff_months|default:'' }}"></div>
+
+      <div class="bd-field"><label>Contact Person</label><input name="contact_person" value="{{ project.contact_person|default:'' }}"></div>
+      <div class="bd-field"><label>Contact Phone</label><input name="contact_phone" value="{{ project.contact_phone|default:'' }}"></div>
+      <div class="bd-field"><label>Contact Email</label><input name="contact_email" value="{{ project.contact_email|default:'' }}"></div>
+      <div class="bd-field"><label>Contact Website</label><input name="contact_website" value="{{ project.contact_website|default:'' }}"></div>
+      <div class="bd-field" style="grid-column:1/-1;"><label>Contact Address</label><textarea name="contact_address" style="min-height:60px;">{{ project.contact_address|default:'' }}</textarea></div>
+    </div>
+
+    <div style="margin-top:22px;display:flex;gap:10px;">
+      <button type="submit" class="btn btn-black">{% if project %}Save Changes{% else %}Create Project{% endif %}</button>
+      <a href="{% url 'bd:project_list' %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+    </div>
+  </div></div>
+</form>
+{% endblock %}

@@ -1,0 +1,10 @@
+{# templates/tenders/_country_bar.html — one ranked country row with an inline bar #}
+{% load tender_extras %}
+{% with new_count=new_by_country|get_item:row.country__code aec_count=aec_by_country|get_item:row.country__code %}
+<a class="crow" href="{% url 'tenders:list' %}?country={{ row.country__code }}" style="--pct:{% widthratio row.n top_country_n 100 %}%;">
+  <span class="flag {% if row.country__code in 'WB,UN,EU,AB,AD,IB,BA,ZZ' %}flag-org{% endif %}">{{ row.country__code }}</span>
+  <span class="crow-name">{{ row.country__name_en|default:row.country__code }}</span>
+  {% if new_count %}<span style="background:var(--ink);color:var(--yellow);font-size:.58rem;font-weight:700;padding:2px 6px;letter-spacing:.04em;text-transform:uppercase;">{{ new_count }} new</span>{% endif %}
+  <span class="crow-n num">{{ row.n }}</span>
+</a>
+{% endwith %}

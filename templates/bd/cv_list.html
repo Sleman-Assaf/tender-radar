@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}CV Pool — TenderRadar{% endblock %}
+{% block page_title %}CV Pool{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'bd:project_list' %}" class="btn btn-ghost btn-sm">{% icon 'project' %}Projects</a>
+<a href="{% url 'bd:cv_bulk_upload' %}" class="btn btn-outline btn-sm">{% icon 'upload' %}Bulk Upload</a>
+<a href="{% url 'bd:cv_upload' %}" class="btn btn-black btn-sm">{% icon 'upload' %}Upload CV</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:18px;">
+  <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;padding:16px 18px;">
+    <div style="flex:1;min-width:220px;">
+      <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;">Search</div>
+      <input type="text" name="q" value="{{ f.q }}" placeholder="Name, position, keyword in CV…"
+             style="width:100%;padding:8px 10px;border:1px solid #ddd;font-family:inherit;">
+    </div>
+    <div>
+      <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;">Discipline</div>
+      <select name="discipline" style="padding:8px 10px;border:1px solid #ddd;font-family:inherit;">
+        <option value="">All</option>
+        {% for code,label in disciplines %}
+        <option value="{{ code }}" {% if f.discipline == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;">Status</div>
+      <select name="status" style="padding:8px 10px;border:1px solid #ddd;font-family:inherit;">
+        <option value="">All</option>
+        {% for code,label in statuses %}
+        <option value="{{ code }}" {% if f.status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <div style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:4px;">Min Years</div>
+      <input type="number" name="min_years" value="{{ f.min_years }}" min="0" style="width:90px;padding:8px 10px;border:1px solid #ddd;font-family:inherit;">
+    </div>
+    <button type="submit" class="btn btn-black btn-sm">{% icon 'filter' %}Filter</button>
+    <a href="{% url 'bd:cv_list' %}" class="btn btn-ghost btn-sm">{% icon 'refresh' %}Reset</a>
+    {% if review_count %}
+    <a href="{% url 'bd:cv_list' %}?review=1" class="btn btn-sm"
+       style="background:#fffef0;color:#b8860b;border:1px solid #ffe88a;{% if f.review == '1' %}box-shadow:inset 0 -2px 0 #b8860b;{% endif %}">
+      {% icon 'alert' %}Needs Review ({{ review_count }})</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'engineering' %}Engineers &amp; PMs</span>
+    <span style="font-size:.76rem;color:#aaa;margin-left:12px;">{{ total }} in pool</span>
+  </div>
+  <div style="padding:0;">
+    <div style="display:grid;grid-template-columns:1fr 170px 110px 90px 140px 190px;gap:0 14px;
+                padding:10px 18px;background:#f8f9fb;border-bottom:2px solid var(--yellow);
+                font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#888;">
+      <div>Name / Position</div><div>Discipline</div><div>Years</div><div>Status</div><div>Countries</div><div>Actions</div>
+    </div>
+    {% for e in page %}
+    <div style="display:grid;grid-template-columns:1fr 170px 110px 90px 140px 190px;gap:0 14px;
+                padding:12px 18px;border-bottom:1px solid #f5f5f5;align-items:center;"
+         onmouseover="this.style.background='#fafbff'" onmouseout="this.style.background=''">
+      <div style="display:flex;align-items:center;gap:10px;">
+        {% if e.photo %}<img src="{{ e.photo.url }}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:50%;border:1px solid #eee;flex-shrink:0;" onerror="this.style.display='none'">
+        {% else %}<div style="width:34px;height:34px;border-radius:50%;background:var(--yellow);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;flex-shrink:0;">{{ e.full_name|first }}</div>{% endif %}
+        <div>
+        <a href="{% url 'bd:cv_detail' e.pk %}" style="font-weight:700;font-size:.88rem;color:var(--ink);">{{ e.full_name }}</a>
+        {% if e.needs_review %}<span style="font-size:.6rem;font-weight:800;padding:1px 6px;border-radius:8px;background:#fffef0;color:#b8860b;border:1px solid #ffe88a;vertical-align:middle;margin-left:6px;">REVIEW</span>{% endif %}
+        <div style="font-size:.74rem;color:#aaa;">{{ e.current_position|default:e.profession }}</div>
+        </div>
+      </div>
+      <div style="font-size:.78rem;color:#555;">{{ e.get_discipline_display }}</div>
+      <div style="font-size:.78rem;color:#555;">{{ e.years_experience|default:"—" }}</div>
+      <div><span style="font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px;
+            {% if e.status == 'ACTIVE' %}background:#e8fdf0;color:#1a8840;border:1px solid #b8edc8;
+            {% elif e.status == 'EXTERNAL' %}background:#e8f4fd;color:var(--info);border:1px solid #c0d8f8;
+            {% else %}background:#f5f5f5;color:#888;border:1px solid #e5e5e5;{% endif %}">
+        {{ e.get_status_display }}</span></div>
+      <div style="font-size:.74rem;color:#777;">{{ e.countries_experience|truncatechars:28|default:"—" }}</div>
+      <div style="display:flex;gap:6px;">
+        <a href="{% url 'bd:cv_detail' e.pk %}" class="btn btn-ghost btn-sm">{% icon 'eye' %}View</a>
+        <a href="{% url 'bd:cv_download' e.pk %}" class="btn btn-outline btn-sm" title="Download AJi-template formatted CV">{% icon 'word' %}DOCX</a>
+      </div>
+    </div>
+    {% empty %}
+    <div style="text-align:center;padding:48px;color:#aaa;">
+      No CVs yet — <a href="{% url 'bd:cv_upload' %}">upload the first one</a>.
+    </div>
+    {% endfor %}
+  </div>
+  {% if page.has_other_pages %}
+  <div style="display:flex;gap:8px;justify-content:center;padding:14px;">
+    {% if page.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page.previous_page_number }}&q={{ f.q }}&discipline={{ f.discipline }}&status={{ f.status }}&min_years={{ f.min_years }}">{% icon 'arrow-left' %}Prev</a>{% endif %}
+    <span style="font-size:.8rem;color:#888;align-self:center;">Page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page.next_page_number }}&q={{ f.q }}&discipline={{ f.discipline }}&status={{ f.status }}&min_years={{ f.min_years }}">{% icon 'arrow-right' %}Next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Department head avatar">
+  <rect width="100" height="100" fill="#EDEDE7"/>
+  <circle cx="50" cy="55" r="34" fill="#0F0F0D" opacity=".05"/>
+  <path d="M16 100 C16 74 31 64 50 64 C69 64 84 74 84 100 Z" fill="#0F0F0D"/>
+  <circle cx="50" cy="41" r="15" fill="#0F0F0D"/>
+  <path d="M40 66 L50 78 L60 66 L60 72 L50 86 L40 72 Z" fill="#FFFFFF"/>
+  <path d="M50 74 L46 79 L50 82 L54 79 Z" fill="#FCD700"/>
+  <path d="M50 82 L45.5 86 L50 100 L54.5 86 Z" fill="#FCD700"/>
+</svg>

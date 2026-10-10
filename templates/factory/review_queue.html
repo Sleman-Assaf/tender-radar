@@ -1,0 +1,208 @@
+{# templates/factory/review_queue.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+
+{% block title %}Review Queue — TenderRadar{% endblock %}
+{% block eyebrow %}Superuser · Scraper Factory{% endblock %}
+{% block page_title %}Manual Review Queue{% endblock %}
+{% block page_subtitle %}<p>Builds the Factory could not finish, with everything it already worked out.</p>{% endblock %}
+
+{% block content %}
+<div class="rq-wrap">
+
+  <div class="ops-tabs">
+    <a href="{% url 'factory:home' %}">{% icon 'plus' 14 %}Add a website</a>
+    <a href="{% url 'factory:operations' %}">{% icon 'chart' 14 %}Operations</a>
+    <a href="{% url 'factory:review_queue' %}" class="active">{% icon 'alert' 14 %}Review queue</a>
+  </div>
+
+  <div class="rq-filters">
+    {% for value, label in statuses %}
+      <a href="?status={{ value }}"
+         class="rq-filter {% if status == value %}active{% endif %}">
+        {{ label }} <b>{{ counts|get_item:value|default:0 }}</b>
+      </a>
+    {% endfor %}
+  </div>
+
+  {% if items %}
+    {% for item in items %}
+    <div class="card rq-item">
+      <div class="card-header">
+        <span class="card-title">{{ item.url|truncatechars:72 }}</span>
+        <span class="ops-chip {% if item.status == 'OPEN' %}ops-disabled{% elif item.status == 'FIXED' %}ops-healthy{% else %}ops-degraded{% endif %}">
+          {{ item.failure_category }}
+        </span>
+      </div>
+      <div class="card-body rq-body">
+
+        <div class="rq-headline">{{ item.headline }}</div>
+
+        <div class="rq-grid">
+          <div>
+            <div class="rq-l">Root cause stage</div>
+            <div class="rq-v">{{ item.root_cause_stage|default:"—" }}</div>
+          </div>
+          <div>
+            <div class="rq-l">Suggested strategy</div>
+            <div class="rq-v">{{ item.suggested_strategy|default:"none — not plannable" }}</div>
+          </div>
+          <div>
+            <div class="rq-l">Suggested repair scope</div>
+            <div class="rq-v">
+              {% if item.suggested_repair_scope %}
+                {{ item.suggested_repair_scope|join:", " }}
+              {% else %}not repairable by regenerating{% endif %}
+            </div>
+          </div>
+          <div>
+            <div class="rq-l">Queued</div>
+            <div class="rq-v">{{ item.created_at|date:"Y-m-d H:i" }}</div>
+          </div>
+        </div>
+
+        {% if item.evidence %}
+        <div class="rq-block">
+          <div class="rq-l">Evidence</div>
+          <ul class="rq-evidence">
+            {% for e in item.evidence %}<li>{{ e }}</li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if item.similar_scrapers %}
+        <div class="rq-block">
+          <div class="rq-l">Closest existing scrapers</div>
+          <div class="rq-v">{{ item.similar_scrapers|join:", " }}</div>
+        </div>
+        {% endif %}
+
+        {% if item.investigation %}
+        <div class="rq-block">
+          <div class="rq-l">Investigation</div>
+          <div class="rq-v">
+            {{ item.investigation.data_source|default:"UNKNOWN" }} ·
+            tier {{ item.investigation.tier }} ·
+            {{ item.investigation.overall_confidence }}% confident
+            {% if item.investigation.escalation_reason %}
+              <div class="ops-meta">Escalated: {{ item.investigation.escalation_reason }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if item.resolution %}
+        <div class="rq-block rq-fixed">
+          <div class="rq-l">Resolution</div>
+          <div class="rq-v">{{ item.resolution }}</div>
+          <div class="ops-meta">
+            Stored in Factory Memory, so the next portal of this shape benefits.
+          </div>
+        </div>
+        {% endif %}
+
+        <p class="rq-cli">
+          Re-run the investigation:
+          <code>python manage.py factory_investigate {{ item.url }}</code>
+        </p>
+
+        <form class="rq-form" method="post"
+              action="{% url 'factory:review_resolve' item.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+          <div class="rq-block">
+            <div class="rq-l">Working notes</div>
+            <textarea name="developer_notes" rows="2"
+                      placeholder="What you have found so far. Saved on its own — you do not have to close the item.">{{ item.developer_notes }}</textarea>
+          </div>
+
+          <div class="rq-block">
+            <div class="rq-l">What did you change?</div>
+            <textarea name="resolution" rows="3"
+                      placeholder="e.g. the listing needs a POST with __EVENTTARGET; the row selector is table#grd tr, not tbody tr">{{ item.resolution }}</textarea>
+            <div class="ops-meta">
+              Required to close an item. This text becomes the Factory's lesson
+              for the next portal with the same structural signature, so write it
+              for whoever meets that portal, not for this ticket.
+            </div>
+          </div>
+
+          <div class="rq-actions">
+            <button type="submit" name="status" value="">{% icon 'save' %}Save notes</button>
+            {% for value, label in statuses %}
+              {% if value != item.status %}
+                <button type="submit" name="status" value="{{ value }}"
+                        class="{% if value == 'FIXED' %}rq-primary{% endif %}">
+                  {{ label }}</button>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="card">
+      <div class="card-body">
+        <p class="ops-empty">Nothing in this queue. Every build either succeeded
+          or is still running.</p>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<style>
+  .rq-wrap{max-width:980px;margin:0 auto}
+
+  .ops-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:22px}
+  .ops-tabs a{display:inline-flex;align-items:center;gap:7px;padding:11px 18px;font-size:.76rem;
+    font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    text-decoration:none;border-bottom:2px solid transparent}
+  .ops-tabs a:hover{color:var(--ink)}
+  .ops-tabs a.active{color:var(--ink);border-bottom-color:var(--yellow)}
+  .ops-chip{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+    padding:3px 9px;background:var(--paper-3);color:var(--muted)}
+  .rq-form{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+  .rq-form textarea{width:100%;padding:9px 11px;font:inherit;font-size:.85rem;
+    color:var(--ink);background:var(--paper);border:1px solid var(--line);
+    border-radius:2px;resize:vertical}
+  .rq-form textarea:focus{outline:none;border-color:var(--yellow)}
+  .rq-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .rq-actions button{padding:8px 15px;font-size:.72rem;font-weight:700;
+    text-transform:uppercase;letter-spacing:.07em;color:var(--ink);cursor:pointer;
+    background:var(--paper-3);border:1px solid var(--line);border-radius:2px}
+  .rq-actions button:hover{border-color:var(--ink)}
+  .rq-actions button.rq-primary{background:var(--yellow);border-color:var(--yellow)}
+
+  .ops-healthy{background:var(--ok-bg);color:var(--ok)}
+  .ops-degraded{background:var(--warn-bg);color:var(--warn)}
+  .ops-disabled{background:var(--bad-bg);color:var(--bad)}
+  .ops-meta{font-size:.7rem;color:var(--muted);margin-top:3px}
+  .ops-empty{font-size:.82rem;color:var(--muted);padding:8px 0}
+
+  .rq-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+  .rq-filter{font-size:.74rem;font-weight:600;padding:6px 12px;border:1px solid var(--line-2);
+    color:var(--muted);text-decoration:none;background:var(--paper-2)}
+  .rq-filter:hover{color:var(--ink);border-color:var(--ink)}
+  .rq-filter.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .rq-filter b{margin-left:4px}
+
+  .rq-item{margin-bottom:18px}
+  .rq-body{padding:16px 18px}
+  .rq-headline{font-size:.9rem;font-weight:700;color:var(--ink);margin-bottom:14px;
+    padding-bottom:12px;border-bottom:1px solid var(--line)}
+  .rq-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:14px;margin-bottom:14px}
+  .rq-l{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);margin-bottom:3px}
+  .rq-v{font-size:.82rem;color:var(--ink-2)}
+  .rq-block{padding-top:12px;border-top:1px solid var(--line)}
+  .rq-evidence{margin:4px 0 0;padding-left:18px;font-size:.78rem;color:var(--ink-2)}
+  .rq-evidence li{padding:2px 0}
+  .rq-fixed{background:var(--ok-bg);margin:12px -18px -16px;padding:12px 18px 16px}
+  .rq-cli{font-size:.74rem;color:var(--muted);margin-top:14px;padding-top:12px;
+    border-top:1px solid var(--line)}
+  .rq-cli code{background:var(--paper-3);padding:2px 6px;font-size:.72rem}
+</style>
+{% endblock %}

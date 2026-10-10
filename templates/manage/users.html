@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}User Permissions — TenderRadar{% endblock %}
+{% block page_title %} User Permissions{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_hub' %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Hub</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'user-shield' %}User Access Control</span>
+    <span style="font-size:.76rem;color:#aaa;margin-left:12px;">
+      By default all users see AEC tenders only. Grant access to see All Tenders individually.
+    </span>
+  </div>
+
+  <div style="padding:0;">
+
+    <div style="display:grid;grid-template-columns:1fr 110px 100px 140px 170px 170px;
+                gap:0 14px;padding:10px 18px;background:#f8f9fb;
+                border-bottom:2px solid var(--yellow);
+                font-size:.66rem;font-weight:800;text-transform:uppercase;
+                letter-spacing:.1em;color:#888;">
+      <div>User</div>
+      <div>Industry</div>
+      <div>Team Leader</div>
+      <div>Tender Access</div>
+      <div>Action</div>
+      <div>Feedback Alerts</div>
+    </div>
+
+    {% for ud in user_data %}
+    <div style="display:grid;grid-template-columns:1fr 110px 100px 140px 170px 170px;
+                gap:0 14px;padding:13px 18px;border-bottom:1px solid #f5f5f5;
+                align-items:center;transition:background .12s;"
+         onmouseover="this.style.background='#fafbff'"
+         onmouseout="this.style.background=''">
+
+      <div>
+        <div style="font-weight:700;font-size:.86rem;">
+          {{ ud.user.get_full_name|default:ud.user.username }}
+          {% if ud.user.is_staff %}
+          <span style="font-size:.64rem;background:#000;color:#fff;padding:1px 6px;
+                       border-radius:4px;margin-left:4px;">ADMIN</span>
+          {% endif %}
+        </div>
+        <div style="font-size:.72rem;color:#aaa;">{{ ud.user.username }} · {{ ud.user.email }}</div>
+      </div>
+
+      <div style="font-size:.78rem;color:#555;">{{ ud.industry }}</div>
+
+      <div>
+        {% if ud.in_team_leaders %}
+        <span style="font-size:.72rem;background:#fffef0;color:#b8860b;
+                     border:1px solid #ffe88a;padding:2px 8px;border-radius:10px;font-weight:600;">
+           Leader
+        </span>
+        {% else %}
+        <span style="font-size:.72rem;color:#ccc;">—</span>
+        {% endif %}
+      </div>
+
+      <div>
+        {% if ud.can_see_all %}
+        <span style="font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:12px;
+                     background:#e8fdf0;color:#1a8840;border:1px solid #b8edc8;">
+           All Tenders
+        </span>
+        {% else %}
+        <span style="font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:12px;
+                     background:#e8f4fd;color:var(--info);border:1px solid #c0d8f8;">
+           AEC Only
+        </span>
+        {% endif %}
+      </div>
+
+      <div>
+        {% if not ud.user.is_staff %}
+        {% if ud.can_see_all %}
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="user_id" value="{{ ud.user.pk }}">
+          <input type="hidden" name="action"  value="revoke_all">
+          <button type="submit" class="btn btn-sm"
+            style="background:#fff0f0;color:#c00;border:1px solid #fcc;font-size:.74rem;"
+            onclick="return confirm('Restrict {{ ud.user.username }} to AEC only?')">
+            {% icon 'filter' %}Restrict to AEC
+          </button>
+        </form>
+        {% else %}
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="user_id" value="{{ ud.user.pk }}">
+          <input type="hidden" name="action"  value="grant_all">
+          <button type="submit" class="btn btn-sm"
+            style="background:#e8fdf0;color:#1a8840;border:1px solid #b8edc8;font-size:.74rem;">
+            {% icon 'list' %}Grant All Tenders
+          </button>
+        </form>
+        {% endif %}
+        {% else %}
+        <span style="font-size:.72rem;color:#ccc;">Admin — full access</span>
+        {% endif %}
+      </div>
+
+      <div>
+        {% if ud.fb_alerts %}
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="user_id" value="{{ ud.user.pk }}">
+          <input type="hidden" name="action"  value="disable_fb_alerts">
+          <button type="submit" class="btn btn-sm"
+            style="background:#fffef0;color:#b8860b;border:1px solid #ffe88a;font-size:.72rem;"
+            title="This user receives an e-mail whenever any user submits feedback. Click to disable.">
+            {% icon 'bell' %}Alerts On
+          </button>
+        </form>
+        {% else %}
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="user_id" value="{{ ud.user.pk }}">
+          <input type="hidden" name="action"  value="enable_fb_alerts">
+          <button type="submit" class="btn btn-sm btn-ghost"
+            style="font-size:.72rem;color:#888;"
+            title="Enable e-mail alerts to this user whenever any user submits feedback.">
+            {% icon 'bell' %}Enable Alerts
+          </button>
+        </form>
+        {% endif %}
+      </div>
+
+    </div>
+    {% empty %}
+    <div style="text-align:center;padding:40px;color:#aaa;">No active users found.</div>
+    {% endfor %}
+
+  </div>
+</div>
+{% endblock %}

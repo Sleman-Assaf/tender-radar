@@ -1,0 +1,11 @@
+{# templates/tenders/_country_tile.html — compact starrable country chip #}
+{% load tender_extras %}
+<div class="cchip{% if row.country__code in favorite_codes %} is-fav{% endif %}" data-code="{{ row.country__code }}">
+  <button type="button" class="cstar{% if row.country__code in favorite_codes %} on{% endif %}"
+          onclick="toggleFav(event,'{{ row.country__code }}')" aria-label="Toggle favourite" title="Favourite">{% icon 'star' 16 %}</button>
+  <a class="cchip-body" href="{% url 'tenders:list' %}?country={{ row.country__code }}">
+    <span class="flag {% if row.country__code in 'WB,UN,EU,AB,AD,IB,BA,ZZ' %}flag-org{% endif %}">{{ row.country__code }}</span>
+    <span class="cchip-name">{{ row.country__name_en|default:row.country__code }}</span>
+    <span class="cchip-n num">{{ row.n }}</span>
+  </a>
+</div>

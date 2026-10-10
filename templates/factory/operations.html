@@ -1,0 +1,228 @@
+{# templates/factory/operations.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+
+{% block title %}Factory Operations — TenderRadar{% endblock %}
+{% block eyebrow %}Superuser · Scraper Factory{% endblock %}
+{% block page_title %}Factory Operations{% endblock %}
+{% block page_subtitle %}<p>Health, metrics and diagnostics for every scraper the Factory built.</p>{% endblock %}
+
+{% block content %}
+<div class="ops-wrap">
+
+  <div class="ops-tabs">
+    <a href="{% url 'factory:home' %}">{% icon 'plus' 14 %}Add a website</a>
+    <a href="{% url 'factory:operations' %}" class="active">{% icon 'chart' 14 %}Operations</a>
+    <a href="{% url 'factory:review_queue' %}">{% icon 'alert' 14 %}Review queue
+      {% if summary.open_reviews %}<span class="ops-badge">{{ summary.open_reviews }}</span>{% endif %}
+    </a>
+  </div>
+
+  {# ── fleet header ─────────────────────────────────────────────────────── #}
+  <div class="ops-tiles">
+    <div class="ops-tile">
+      <div class="ops-tile-n">{{ summary.runs }}</div>
+      <div class="ops-tile-l">runs · last {{ window_days }}d</div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-tile-n {% if summary.success_rate >= 0.8 %}ok{% elif summary.success_rate >= 0.5 %}warn{% else %}bad{% endif %}">
+        {{ summary.success_rate|floatformat:"0%" }}
+      </div>
+      <div class="ops-tile-l">success rate</div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-tile-n">{{ summary.tenders_valid }}</div>
+      <div class="ops-tile-l">valid tenders</div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-tile-n {% if summary.tenders_rejected %}warn{% endif %}">{{ summary.tenders_rejected }}</div>
+      <div class="ops-tile-l">rejected rows</div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-tile-n">{{ summary.average_execution_ms }}<span class="ops-unit">ms</span></div>
+      <div class="ops-tile-l">avg execution</div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-tile-n {% if summary.open_alerts %}bad{% endif %}">{{ summary.open_alerts }}</div>
+      <div class="ops-tile-l">open alerts</div>
+    </div>
+  </div>
+
+  <div class="ops-health">
+    <span class="ops-health-l">Health:</span>
+    {% for state, count in summary.health.items %}
+      <span class="ops-chip ops-{{ state|lower }}">{{ count }} {{ state|lower }}</span>
+    {% endfor %}
+  </div>
+
+  {# ── per-scraper table ────────────────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">{% icon 'scraper' %}Generated scrapers</span>
+      <span class="card-sub">{{ overviews|length }} installed</span>
+    </div>
+    <div class="card-body">
+      {% if overviews %}
+      <div class="ops-scroll">
+        <table class="data-table ops-table">
+          <thead>
+            <tr>
+              <th>Scraper</th>
+              <th>Health</th>
+              <th>Last run</th>
+              <th>Last OK</th>
+              <th class="num">Fails</th>
+              <th class="num">Consec.</th>
+              <th class="num">Success</th>
+              <th>Strategy</th>
+              <th>Investigation</th>
+              <th>Diagnosis</th>
+              <th class="num">Repairs</th>
+              <th class="num">Avg ms</th>
+              <th class="num">Extracted</th>
+              <th class="num">Classified</th>
+              <th>Version</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in overviews %}
+            <tr class="{% if v.health_status == 'DISABLED' %}row-bad{% elif v.health_status == 'DEGRADED' %}row-warn{% endif %}">
+              <td>
+                <div class="ops-name">{{ v.name }}</div>
+                <div class="ops-meta">{{ v.class_name }}{% if not v.is_scheduled %} · <span class="bad">not scheduled</span>{% endif %}</div>
+              </td>
+              <td><span class="ops-chip ops-{{ v.health_status|lower }}">{{ v.health_status }}</span></td>
+              <td class="ops-when">{% if v.last_run %}{{ v.last_run|date:"m-d H:i" }}{% else %}—{% endif %}</td>
+              <td class="ops-when">{% if v.last_successful_run %}{{ v.last_successful_run|date:"m-d H:i" }}{% else %}never{% endif %}</td>
+              <td class="num">{{ v.failure_count }}</td>
+              <td class="num {% if v.consecutive_failures %}warn{% endif %}">{{ v.consecutive_failures }}</td>
+              <td class="num">{{ v.success_rate|floatformat:"0%" }}</td>
+              <td>{{ v.current_strategy|default:"—" }}</td>
+              <td class="ops-small">{{ v.investigation_result|default:"—" }}</td>
+              <td class="ops-small">{{ v.diagnostic_category|default:"—" }}</td>
+              <td class="num">{{ v.repair_count }}</td>
+              <td class="num">{{ v.average_execution_ms }}</td>
+              <td class="num">{{ v.last_extraction_count }}</td>
+              <td class="num">{{ v.last_ai_classification_count }}</td>
+              <td class="ops-small">{{ v.active_version|default:"—" }}</td>
+            </tr>
+            {% if v.recommended_action %}
+            <tr class="ops-action-row {% if v.health_status == 'DISABLED' %}row-bad{% else %}row-warn{% endif %}">
+              <td colspan="15">
+                <span class="ops-action-l">Recommended action</span>
+                {{ v.recommended_action }}
+                {% if v.disabled_reason %}<div class="ops-meta">Disabled because: {{ v.disabled_reason }}</div>{% endif %}
+              </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="ops-empty">No generated scrapers are installed yet. Add a website
+        on the <a href="{% url 'factory:home' %}">Factory page</a> and its health
+        will appear here after the first scheduled run.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── strategy performance & root causes ───────────────────────────────── #}
+  <div class="ops-cols">
+    <div class="card">
+      <div class="card-header"><span class="card-title">{% icon 'chart' %}Strategy performance</span></div>
+      <div class="card-body">
+        {% if strategies %}
+        <table class="data-table">
+          <thead><tr><th>Strategy</th><th class="num">Runs</th><th class="num">Success</th><th class="num">Tenders</th><th class="num">Avg ms</th></tr></thead>
+          <tbody>
+            {% for s in strategies %}
+            <tr>
+              <td>{{ s.strategy }}</td>
+              <td class="num">{{ s.runs }}</td>
+              <td class="num">{{ s.success_rate|floatformat:"0%" }}</td>
+              <td class="num">{{ s.tenders }}</td>
+              <td class="num">{{ s.average_ms }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="ops-empty">No executions recorded yet.</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">{% icon 'alert' %}Most common root causes</span></div>
+      <div class="card-body">
+        {% if summary.root_causes %}
+        <table class="data-table">
+          <thead><tr><th>Failure category</th><th class="num">Count</th></tr></thead>
+          <tbody>
+            {% for cause, n in summary.root_causes.items %}
+            <tr><td>{{ cause }}</td><td class="num">{{ n }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="ops-empty">No failures recorded in this window.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <p class="ops-note">
+    Recomputed on every page load from the health, metric and investigation
+    tables, so it reflects the most recent scheduled run with no caching.
+  </p>
+</div>
+
+<style>
+  .ops-wrap{max-width:1180px;margin:0 auto}
+
+  .ops-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:22px}
+  .ops-tabs a{display:inline-flex;align-items:center;gap:7px;padding:11px 18px;font-size:.76rem;
+    font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    text-decoration:none;border-bottom:2px solid transparent}
+  .ops-tabs a:hover{color:var(--ink)}
+  .ops-tabs a.active{color:var(--ink);border-bottom-color:var(--yellow)}
+  .ops-badge{background:var(--bad);color:#fff;border-radius:999px;padding:1px 7px;
+    font-size:.68rem;margin-left:2px}
+
+  .ops-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:12px;margin-bottom:16px}
+  .ops-tile{background:var(--paper-2);border:1px solid var(--line-2);padding:14px 16px}
+  .ops-tile-n{font-size:1.5rem;font-weight:800;color:var(--ink);line-height:1.1}
+  .ops-tile-n.ok{color:var(--ok)} .ops-tile-n.warn{color:var(--warn)}
+  .ops-tile-n.bad{color:var(--bad)}
+  .ops-unit{font-size:.8rem;font-weight:600;color:var(--muted);margin-left:2px}
+  .ops-tile-l{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);margin-top:4px}
+
+  .ops-health{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+  .ops-health-l{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);font-weight:700}
+  .ops-chip{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+    padding:3px 9px;background:var(--paper-3);color:var(--muted)}
+  .ops-healthy{background:var(--ok-bg);color:var(--ok)}
+  .ops-degraded{background:var(--warn-bg);color:var(--warn)}
+  .ops-disabled{background:var(--bad-bg);color:var(--bad)}
+
+  .ops-scroll{overflow-x:auto}
+  .ops-table{min-width:1080px;font-size:.8rem}
+  .ops-table th.num,.ops-table td.num{text-align:right}
+  .ops-table td.warn{color:var(--warn);font-weight:700}
+  .ops-name{font-weight:700;color:var(--ink)}
+  .ops-meta{font-size:.7rem;color:var(--muted);margin-top:2px}
+  .ops-small{font-size:.72rem;color:var(--ink-2)}
+  .ops-when{font-size:.74rem;white-space:nowrap}
+  .row-warn{background:var(--warn-bg)}
+  .row-bad{background:var(--bad-bg)}
+  .ops-action-row td{font-size:.76rem;color:var(--ink-2);padding-top:2px}
+  .ops-action-l{display:inline-block;font-size:.66rem;font-weight:700;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-right:8px}
+
+  .ops-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}
+  @media(max-width:860px){.ops-cols{grid-template-columns:1fr}}
+  .ops-empty{font-size:.82rem;color:var(--muted);padding:8px 0}
+  .ops-note{font-size:.74rem;color:var(--muted);margin-top:18px}
+  .card-sub{font-size:.72rem;color:var(--muted)}
+</style>
+{% endblock %}

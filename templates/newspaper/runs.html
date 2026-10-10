@@ -1,0 +1,97 @@
+{# templates/newspaper/runs.html — Newspaper Runs log (System Dashboard) #}
+{# Run history of the nightly Al-Rai pipeline: one card per edition with its #}
+{# PDFs, statuses and tender counts — the newspaper equivalent of Scraper Runs #}
+{% extends "base.html" %}
+{% load tender_extras %}
+
+{% block title %}Newspaper Runs — TenderRadar | AJi{% endblock %}
+{% block eyebrow %}System Dashboard · Newspaper Tenders{% endblock %}
+{% block page_title %}Newspaper Runs{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='newspaper_runs' %}{% include "it/_nav.html" %}{% endwith %}
+
+<style>
+.np-run{border:1px solid var(--line);background:var(--paper-2);margin-bottom:14px}
+.np-run-head{display:flex;flex-wrap:wrap;gap:18px;align-items:center;padding:13px 16px;border-bottom:1px solid var(--line)}
+.np-run-date{font-weight:700;font-size:.95rem;color:var(--ink);min-width:110px}
+.np-kv{font-size:.72rem;color:var(--muted);line-height:1.5}
+.np-kv b{color:var(--ink);font-weight:700}
+.np-files{width:100%;border-collapse:collapse;font-size:.74rem}
+.np-files th{Text-align:left;font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:7px 16px;border-bottom:1px solid var(--line)}
+.np-files td{padding:6px 16px;border-bottom:1px solid var(--line);color:var(--ink-2)}
+.np-files tr:last-child td{border-bottom:none}
+.np-badge{display:inline-block;padding:2px 8px;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.np-DONE{background:var(--ok);color:#fff}
+.np-PROCESSING{background:var(--yellow);color:var(--ink)}
+.np-PENDING_PDFS,.np-DISCOVERED,.np-PENDING,.np-DOWNLOADED{background:var(--paper-3);color:var(--muted);border:1px solid var(--line-2)}
+.np-FAILED{background:var(--bad);color:#fff}
+.np-toggle{cursor:pointer;background:none;border:1px solid var(--line-2);padding:3px 10px;font-size:.66rem;font-weight:700;color:var(--muted)}
+.np-error{font-size:.7rem;color:var(--bad);padding:8px 16px;border-top:1px dashed var(--line)}
+</style>
+
+{% for e in editions %}
+<div class="np-run">
+  <div class="np-run-head">
+    <div class="np-run-date">{{ e.edition_date|date:"d M Y" }}<div style="font-size:.68rem;color:var(--muted);font-weight:600;">{{ e.source_display_en }}</div></div>
+    <span class="np-badge np-{{ e.status }}">{{ e.get_status_display }}</span>
+    <div class="np-kv">PDFs<br><b>{{ e.files_done }}/{{ e.files_total }} done{% if e.files_failed %} · {{ e.files_failed }} failed{% endif %}</b></div>
+    <div class="np-kv">Tenders<br><b>{{ e.tenders_total }} extracted · {{ e.tenders_aec }} AEC</b></div>
+    <div class="np-kv">Discovered<br><b>{{ e.discovered_at|date:"d M · H:i"|default:"—" }}</b></div>
+    <div class="np-kv">Completed<br><b>{{ e.processed_at|date:"d M · H:i"|default:"—" }}</b></div>
+    <div style="flex:1;"></div>
+    {% if e.article_url %}<a href="{{ e.article_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{% icon 'external' 12 %} Article</a>{% endif %}
+    <button type="button" class="btn btn-black btn-sm" onclick="retryEdition({{ e.pk }}, this, false)" title="Re-download and process failed/pending PDFs of this edition">{% icon 'refresh' 12 %} Retry</button>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="retryEdition({{ e.pk }}, this, true)" title="Send ALL pages of this edition through the AI again (adds photos to existing tenders; nothing duplicates)">{% icon 'image' 12 %} Re-process</button>
+    <button type="button" class="np-toggle" onclick="var x=document.getElementById('files-{{ e.pk }}');x.style.display=x.style.display==='none'?'block':'none';">{% icon 'folder' %}Files ▾</button>
+  </div>
+
+  <div id="files-{{ e.pk }}" style="display:none;">
+    <table class="np-files">
+      <tr><th>PDF</th><th>Status</th><th>Size</th></tr>
+      {% for f in e.files.all %}
+      <tr>
+        <td><a href="{{ f.pdf_url }}" target="_blank" rel="noopener" style="color:var(--ink);">{{ f.pdf_url|slice:"-14:" }}</a></td>
+        <td><span class="np-badge np-{{ f.status }}">{{ f.get_status_display }}</span></td>
+        <td>{{ f.file_size|filesizeformat|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" style="color:var(--muted);">No PDF files recorded for this edition.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  {% if e.error_message %}<div class="np-error">{{ e.error_message|truncatechars:200 }}</div>{% endif %}
+</div>
+{% empty %}
+<div style="text-align:center;padding:60px 20px;color:var(--muted);">
+  <div style="margin-bottom:12px;color:var(--muted-2);">{% icon 'inbox' 34 %}</div>
+  <div style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.84rem;">No newspaper runs yet</div>
+</div>
+{% endfor %}
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}" class="page-link">‹</a>{% endif %}
+  <span class="page-link current">{{ page_obj.number }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}" class="page-link">›</a>{% endif %}
+</div>
+{% endif %}
+
+<script>
+function retryEdition(pk, btn, force){
+  if (force && !confirm('Re-process ALL pages of this edition through the AI?\nExisting tenders are kept (no duplicates) — they gain photos and any improved fields. This takes the usual processing time.')) return;
+  btn.disabled = true;
+  const fd = new FormData();
+  if (force) fd.append('force', '1');
+  fetch(`/newspaper-tenders/runs/${pk}/retry/`, {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body: fd})
+    .then(r => r.json())
+    .then(d => {
+      showToast(d.message || d.status, 'success');
+      setTimeout(() => { btn.disabled = false; }, 5000);
+    })
+    .catch(() => { showToast('Error starting the retry', 'error'); btn.disabled = false; });
+}
+</script>
+{% endblock %}

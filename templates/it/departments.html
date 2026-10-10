@@ -1,0 +1,100 @@
+{# templates/it/departments.html — Department Management #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Departments — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · Department Management{% endblock %}
+{% block page_title %}Departments{% endblock %}
+{% block page_subtitle %}<p>Each department belongs to a <a href="{% url 'tenders:it_companies' %}">company</a>; each employee belongs to exactly one department. The head is one of its members and can be changed at any time.</p>{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'tenders:it_department_add' %}" class="btn btn-gold btn-sm">{% icon 'plus' %}Add Department</a>
+{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='departments' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-stats">
+  <div class="it-stat">
+    <div class="lbl">Departments</div><div class="val">{{ departments|length }}</div>
+  </div>
+  <div class="it-stat ok">
+    <div class="lbl">Assigned Employees</div><div class="val">{{ total_employees }}</div>
+  </div>
+  <div class="it-stat {% if unassigned %}warn{% endif %}">
+    <div class="lbl">Unassigned</div><div class="val">{{ unassigned }}</div>
+    <div class="sub"><a href="{% url 'tenders:it_users' %}?department=none">View →</a></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">{% icon 'department' %}All Departments</span></div>
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>Department</th><th>Company</th><th>Code</th><th>Head</th><th>Employees</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for d in departments %}
+        <tr>
+          <td>
+            <a href="{% url 'tenders:it_department_detail' d.pk %}" style="font-weight:700;color:var(--ink);">{{ d.name }}</a>
+            {% if d.name_ar %}<div class="ar" style="font-size:.76rem;color:var(--muted);">{{ d.name_ar }}</div>{% endif %}
+          </td>
+          <td>{% if d.company %}{{ d.company.name }}{% else %}<span class="state-pill warn">No company</span>{% endif %}</td>
+          <td>{% if d.code %}<code style="color:var(--gold);font-weight:700;">{{ d.code }}</code>{% else %}<span style="color:var(--muted-2);">—</span>{% endif %}</td>
+          <td>
+            {% if d.head %}{{ d.head.get_full_name|default:d.head.username }}
+            {% else %}<span class="state-pill warn">No head</span>{% endif %}
+          </td>
+          <td style="font-weight:700;font-variant-numeric:tabular-nums;">{{ d.employees }}</td>
+          <td>{% if d.is_active %}<span class="state-pill on">Active</span>{% else %}<span class="state-pill off">Inactive</span>{% endif %}</td>
+          <td>
+            <div style="display:flex;gap:6px;">
+              <a href="{% url 'tenders:it_department_detail' d.pk %}" class="btn btn-ghost btn-sm">{% icon 'external' %}Open</a>
+              <a href="{% url 'tenders:it_department_edit' d.pk %}" class="btn btn-outline btn-sm">{% icon 'edit' %}Edit</a>
+              <form method="post" action="{% url 'tenders:it_department_delete' d.pk %}" style="display:inline;"
+                    onsubmit="return confirm('Delete &quot;{{ d.name }}&quot;? Its {{ d.employees }} employee(s) will become unassigned — no account is deleted.')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' %}Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted);">
+          No departments yet. <a href="{% url 'tenders:it_department_add' %}">Create the first one →</a>
+          {% if not companies %}<br><span style="font-size:.78rem;">(Create a <a href="{% url 'tenders:it_company_add' %}">company</a> first — every department belongs to one.)</span>{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if departments %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><span class="card-title">{% icon 'user' %}Move a User</span>
+    <span style="font-size:.76rem;color:var(--muted);">Assign an employee to a department, or move them between departments.</span>
+  </div>
+  <div class="card-pad">
+    <form method="post" action="{% url 'tenders:it_user_move' %}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <select name="user" required style="min-width:240px;background:var(--paper-2);border:1px solid var(--line-2);
+                                          padding:9px 11px;font-size:.82rem;font-family:var(--font);color:var(--ink);">
+        <option value="">— Select user —</option>
+        {% for u in move_form.fields.user.queryset %}
+        <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} ({{ u.username }})</option>
+        {% endfor %}
+      </select>
+      <span style="color:var(--muted);">→</span>
+      <select name="department" style="min-width:220px;background:var(--paper-2);border:1px solid var(--line-2);
+                                        padding:9px 11px;font-size:.82rem;font-family:var(--font);color:var(--ink);">
+        <option value="">— No department —</option>
+        {% for d in departments %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn btn-gold btn-sm">{% icon 'arrow-right' %}Move</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

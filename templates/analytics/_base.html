@@ -1,0 +1,22 @@
+{# templates/analytics/_base.html — shared analytics layout #}
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div style="margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+  <a href="{% url 'tenders:analytics_hub' %}" style="font-size:.85rem;color:var(--grey-5);text-decoration:none;">← Analytics Hub</a>
+  <span style="color:var(--grey-3);">|</span>
+  <span style="font-size:.85rem;color:var(--grey-4);">Period:</span>
+  {% for d in '7,14,30,60,90'|default:'7,14,30,60,90' %}{% endfor %}
+  <div style="display:flex;gap:6px;">
+    {% for d in period_choices %}
+    <a href="?days={{ d }}" style="padding:3px 10px;font-size:.8rem;border:1px solid var(--grey-3);
+      {% if days == d %}background:var(--yellow);color:var(--black);font-weight:700;{% else %}color:var(--grey-5);{% endif %}">
+      {{ d }}d
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% block analytics_content %}{% endblock %}
+{% endblock %}

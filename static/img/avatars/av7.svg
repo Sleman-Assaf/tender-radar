@@ -1,0 +1,13 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Designer avatar">
+  <rect width="100" height="100" fill="#FCD700"/>
+  <circle cx="50" cy="55" r="34" fill="#0F0F0D" opacity=".06"/>
+  <path d="M16 100 C16 74 31 64 50 64 C69 64 84 74 84 100 Z" fill="#0F0F0D"/>
+  <circle cx="50" cy="41" r="15" fill="#0F0F0D"/>
+  <path d="M35 40 C35 26 43 23 51 23 C63 23 67 32 64 41 C60 33 45 30 41 41 Z" fill="#0F0F0D"/>
+  <g transform="rotate(40 50 85)">
+    <rect x="33" y="81" width="31" height="7.5" rx="1" fill="#FFFFFF"/>
+    <rect x="33" y="81" width="4.5" height="7.5" fill="#0F0F0D"/>
+    <polygon points="64,81 72,84.75 64,88.5" fill="#FFFFFF"/>
+    <polygon points="69,83 72,84.75 69,86.5" fill="#0F0F0D"/>
+  </g>
+</svg>

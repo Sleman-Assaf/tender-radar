@@ -1,0 +1,102 @@
+{# templates/manage/url_form.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}{{ action }} — TenderRadar{% endblock %}
+{% block page_title %}{{ action }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'tenders:manage_source_urls' source.pk %}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}URLs for {{ source.name }}</a>
+{% endblock %}
+
+{% block content %}
+{% include "manage/_form_styles.html" %}
+
+<div class="card mgmt-form" style="max-width:760px;">
+  <div class="card-header">
+    <span class="card-title">{{ action }}</span>
+    <span style="font-size:.78rem;color:var(--grey-5);">{% country_flag source.country %} {{ source.name }}</span>
+  </div>
+  <div style="padding:0;">
+    <form method="post">
+      {% csrf_token %}
+
+      <div style="display:none;">{{ form.source }}</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="field-group">
+          <label>Label (English) *</label>
+          {{ form.label }}
+          <div class="helptext">e.g. "Ministry of Works — Engineering Tenders"</div>
+        </div>
+        <div class="field-group">
+          <label>Label (Arabic) — التسمية</label>
+          {{ form.label_ar }}
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Listing URL *</label>
+        {{ form.url }}
+        <div class="helptext">The full URL of the tender listing page, e.g. https://www.gtd.gov.jo/tenders</div>
+        {% if form.url.errors %}<ul class="errorlist">{% for e in form.url.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:16px;">
+        <div class="field-group">
+          <label>Pagination Style</label>
+          {{ form.pagination_style }}
+          <div class="helptext">How pages are navigated</div>
+        </div>
+        <div class="field-group">
+          <label>Page Param</label>
+          {{ form.page_param }}
+          <div class="helptext">Query param name</div>
+        </div>
+        <div class="field-group">
+          <label>Max Pages</label>
+          {{ form.max_pages }}
+          <div class="helptext">Safety limit</div>
+        </div>
+        <div class="field-group">
+          <label>Sort Order</label>
+          {{ form.sort_order }}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="field-group">
+          <label>Extra Params (JSON)</label>
+          {{ form.extra_params }}
+          <div class="helptext">e.g. {"status": "open", "category": "5"}</div>
+        </div>
+        <div class="field-group">
+          <label>Notes</label>
+          {{ form.notes }}
+          <div class="helptext">Scope, filters, known issues</div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          {{ form.is_active }} Active (include in scrape runs)
+        </label>
+      </div>
+
+      <div style="background:var(--grey-2);border:var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:20px;font-size:.8rem;color:var(--grey-5);">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--ink);margin-bottom:8px;"> Pagination Style Guide</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div><span style="color:var(--gold);">Query param</span> → <code>https://site.com/tenders?page=2</code></div>
+          <div><span style="color:var(--gold);">Path segment</span> → <code>https://site.com/tenders/2/</code></div>
+          <div><span style="color:var(--gold);">Single page</span> → Scrapes once, no pagination</div>
+          <div><span style="color:var(--gold);">JSON API</span> → REST API with page index param</div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-gold"> {% icon 'save' %}Save URL</button>
+        <a href="{% url 'tenders:manage_source_urls' source.pk %}" class="btn btn-ghost">{% icon 'x' %}Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

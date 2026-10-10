@@ -1,0 +1,28 @@
+{# templates/manage/_form_styles.html — included by manage form templates #}
+<style>
+  /* Integrated form — no card box, lives directly in the page */
+  .card.mgmt-form{border:none;background:transparent;box-shadow:none;max-width:680px;overflow:visible}
+  .card.mgmt-form > .card-header{display:none}
+  .card.mgmt-form > .card-body{padding:0}
+  .field-group{padding:16px 0;border-bottom:1px solid var(--line)}
+  .field-group > label{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px;font-family:var(--font);font-weight:700}
+  .field-group input[type=text],
+  .field-group input[type=url],
+  .field-group input[type=number],
+  .field-group input[type=password],
+  .field-group input[type=email],
+  .field-group input[type=tel],
+  .field-group input[type=search],
+  .field-group select,
+  .field-group textarea{
+    width:100%;background:var(--paper-2);border:1px solid var(--line-2);color:var(--ink);
+    padding:10px 13px;border-radius:0;font-size:.86rem;font-family:var(--font);outline:none;transition:.15s;
+  }
+  .field-group input:focus,
+  .field-group select:focus,
+  .field-group textarea:focus{border-color:var(--ink);box-shadow:inset 0 -2px 0 var(--yellow)}
+  .field-group .helptext{font-size:.72rem;color:var(--muted);margin-top:5px}
+  .field-group .errorlist{color:var(--bad);font-size:.78rem;margin-top:5px;list-style:none;padding:0}
+  .field-group input[type=checkbox]{accent-color:var(--yellow);width:16px;height:16px;margin-right:6px;vertical-align:middle}
+  .form-actions{display:flex;gap:10px;margin-top:8px;padding-top:22px}
+</style>

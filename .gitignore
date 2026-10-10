@@ -1,0 +1,68 @@
+# .gitignore
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv
+venv/
+db.sqlite3
+*.log
+logs/*.log
+staticfiles/
+media/
+.idea/
+*.iml
+production.env
+*.pyc
+__pycache__/
+db.sqlite3
+/staticfiles/
+/media/
+# System backup archives (IT Dashboard → Backup & Restore)
+backups/
+*.pre-restore
+# Desktop launcher build output (rebuild with desktop/build_exe.py)
+desktop/build/
+desktop/dist/
+TenderRadar.exe
+
+# Local environments and generated output
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.celery/
+staticfiles/
+logs/
+backups/
+media/
+# Secrets and private configuration
+.env
+.env.*
+!.env.example
+production.env
+.secret_key
+mssql.json
+iis_sso.json
+certs/
+*.key
+*.pem
+*.pfx
+*.p12
+*.cer
+*.crt
+# Databases, company imports and unrelated assets
+*.sqlite3
+*.sqlite3-*
+*.db
+*.sql
+*.xlsx
+*.xls
+*.csv
+hr_data/
+PicTemplate/
+bolt_kling/
+*.zip
+*.rar

@@ -1,0 +1,5 @@
+{# templates/analytics/_kpi.html — clean KPI card (no emoji) #}
+<div class="stat-card">
+  <div class="stat-label">{{ label }}</div>
+  <div class="stat-value"{% if color %} style="color:{{ color }};"{% endif %}>{{ value }}</div>
+</div>

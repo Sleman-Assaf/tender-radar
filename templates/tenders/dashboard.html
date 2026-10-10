@@ -1,0 +1,381 @@
+{# templates/tenders/dashboard.html #}
+{% extends "base.html" %}
+{% load static tender_extras %}
+{% block title %}Dashboard — TenderRadar | AJi{% endblock %}
+{% block eyebrow %}{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}{% endblock %}
+
+{% block page_actions %}
+  {% if last_scrape %}
+  <span class="pill mut" title="Most recent scan">{% icon 'refresh' 12 %} Last scan · {{ last_scrape.started_at|timesince }} ago</span>
+  {% endif %}
+  {% if scan_running %}
+  <span class="pill mut" title="A full scan is in progress">{% icon 'refresh' 12 %} Scanning now…</span>
+  {% elif next_scan_at %}
+  <span class="pill mut" title="Every source is scanned automatically on this schedule">{% icon 'clock' 12 %} Next scan · {{ next_scan_at|timeuntil }}</span>
+  {% endif %}
+  {% if not request.user.is_superuser %}
+  <span class="pill mut">{% if profile.industry == 'AEC' %}AEC only{% else %}All tenders{% endif %}{% with cnt=profile.countries.count %} · {% if cnt %}{{ cnt }} countr{{ cnt|pluralize:"y,ies" }}{% else %}all countries{% endif %}{% endwith %}</span>
+  <a href="{% url 'tenders:profile' %}" class="btn btn-ghost btn-sm">{% icon 'edit' 14 %} Change</a>
+  {% endif %}
+  <button class="btn btn-black btn-sm" onclick="triggerAllScrapers(this)">{% icon 'play' 14 %} Run All Scanners</button>
+{% endblock %}
+
+{% block content %}
+<style>
+/* Headline ticker */
+@keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.headline-bar{margin-bottom:22px;display:flex;align-items:stretch;background:var(--paper-2);border:1px solid var(--line);overflow:hidden}
+.hl-label{display:flex;align-items:center;gap:9px;padding:0 18px;background:var(--ink);color:#fff;font-weight:700;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.mini-radar{width:20px;height:20px;display:inline-flex;flex:none}
+.mini-radar svg{width:100%;height:100%}
+.mr-sweep{transform-origin:12px 12px;animation:mr-spin 2.4s linear infinite}
+@keyframes mr-spin{to{transform:rotate(360deg)}}
+.hl-wrap{flex:1;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.hl-track{display:flex;align-items:stretch;width:max-content;animation:ticker-scroll 55s linear infinite}
+.headline-bar:hover .hl-track{animation-play-state:paused}
+/* News — الأخبار — bar: same ticker, yellow label so the two bars read apart */
+.news-bar{margin-top:-12px}
+.hl-label-news{background:var(--yellow);color:var(--ink)}
+/* Newspaper Tenders — عطاءات الجريدة — bar: paper label, taller cards for the ad photos */
+.hl-label-paper{background:var(--paper);color:var(--ink);border-right:1px solid var(--line)}
+.dash-cols{display:grid;grid-template-columns:1.1fr 1fr;gap:18px;margin-top:24px;align-items:stretch}
+@media(max-width:900px){.dash-cols{grid-template-columns:1fr}}
+/* Top Countries — compact starrable chips */
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:8px}
+.cchip{display:flex;align-items:center;gap:7px;padding:7px 11px;border:1px solid var(--line);background:var(--paper-2);transition:border-color .12s}
+.cchip:hover{border-color:var(--line-2)}
+.cchip.is-fav{box-shadow:inset 3px 0 0 var(--yellow)}
+.cstar{flex:none;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:none;background:none;cursor:pointer;color:var(--muted-2);padding:0;transition:color .12s,transform .1s}
+.cstar:hover{color:var(--yellow-deep);transform:scale(1.12)}
+.cstar.on{color:var(--yellow)}
+.cstar.on svg{fill:var(--yellow)}
+.cchip-body{display:flex;align-items:center;gap:9px;flex:1;min-width:0;text-decoration:none;color:var(--ink)}
+.cchip-name{flex:1;font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cchip-n{font-weight:700;font-size:.9rem}
+.fav-head{font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);margin-bottom:11px;display:flex;align-items:center;gap:7px}
+.fav-head .icon{color:var(--yellow);fill:var(--yellow)}
+.fav-panel{margin-bottom:16px;padding:16px 18px 18px;background:var(--paper-2);border:1px solid var(--line);border-top:3px solid var(--yellow)}
+</style>
+
+{% with headlines=today_tickers %}
+{% if headlines %}
+<div class="headline-bar">
+  <div class="hl-label">
+    <span class="mini-radar" aria-hidden="true"><svg viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.4"/>
+      <circle cx="12" cy="12" r="5" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="1.4"/>
+      <g class="mr-sweep"><path d="M12 12 L12 1.5 A10.5 10.5 0 0 1 21 6.75 Z" fill="var(--yellow)" opacity=".9"/></g>
+      <circle cx="12" cy="12" r="1.7" fill="var(--yellow)"/>
+    </svg></span>
+    Today · {{ headlines|length }}
+  </div>
+  <div class="hl-wrap">
+    <div class="hl-track">
+      {% for t in headlines %}{% include "tenders/_ticker_card.html" %}{% endfor %}
+      {% for t in headlines %}{% include "tenders/_ticker_card.html" %}{% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endwith %}
+
+{% with paper_headlines=today_newspaper_tickers %}
+{% if paper_headlines %}
+<div class="headline-bar news-bar">
+  <div class="hl-label hl-label-paper">
+    {% icon 'newspaper' 14 %}
+    Newspaper · {{ paper_headlines|length }}
+  </div>
+  <div class="hl-wrap">
+    <div class="hl-track">
+      {% for t in paper_headlines %}{% include "tenders/_newspaper_ticker_card.html" %}{% endfor %}
+      {% for t in paper_headlines %}{% include "tenders/_newspaper_ticker_card.html" %}{% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endwith %}
+
+{% with news_headlines=today_news_tickers %}
+{% if news_headlines %}
+<div class="headline-bar news-bar">
+  <div class="hl-label hl-label-news">
+    {% icon 'magazine' 14 %}
+    News · {{ news_headlines|length }}
+  </div>
+  <div class="hl-wrap">
+    <div class="hl-track">
+      {% for t in news_headlines %}{% include "tenders/_news_ticker_card.html" %}{% endfor %}
+      {% for t in news_headlines %}{% include "tenders/_news_ticker_card.html" %}{% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endwith %}
+
+<script>
+// Constant, readable ticker speed regardless of how many tenders are in it.
+(function(){
+  var tracks=document.querySelectorAll('.hl-track');
+  if(!tracks.length) return;
+  var SPEED=50; // pixels per second — lower = slower
+  function setDuration(){
+    tracks.forEach(function(track){
+      var half=track.scrollWidth/2;         // track content is duplicated
+      if(half>0) track.style.animationDuration=(half/SPEED)+'s';
+    });
+  }
+  setDuration();
+  window.addEventListener('resize',setDuration);
+})();
+</script>
+
+<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;">
+  <div class="stat-card stat-dark">
+    <div class="stat-label">AEC Tenders</div>
+    <div class="stat-value">{{ total_tenders }}</div>
+    <div class="stat-sub">Across all sources</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Open Now</div>
+    <div class="stat-value">{{ open_tenders }}</div>
+    <div class="stat-sub">Accepting submissions</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Countries</div>
+    <div class="stat-value">{{ by_country|length }}</div>
+    <div class="stat-sub">With open tenders</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Unseen</div>
+    <div class="stat-value">{{ new_tenders }}</div>
+    <div class="stat-sub">Not yet opened by you</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Expiring 7d</div>
+    <div class="stat-value">{{ expiring_7d }}</div>
+    <div class="stat-sub">Urgent attention</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Bookmarked</div>
+    <div class="stat-value">{{ bookmarked }}</div>
+    <div class="stat-sub">Saved for follow-up</div>
+  </div>
+</div>
+
+{% if request.user.is_superuser %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{% icon 'tender' %}Admin · All Tenders (AEC &amp; Non-AEC)</span>
+    <a href="{% url 'tenders:list' %}?all=1" class="lk muted" style="font-size:.72rem;font-weight:600;">Browse all tenders →</a>
+  </div>
+  <div class="card-body" style="padding:14px 18px;">
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;">
+      <a href="{% url 'tenders:list' %}?all=1" class="stat-card stat-dark" style="display:block;">
+        <div class="stat-label">All Tenders</div>
+        <div class="stat-value">{{ admin_stats.all_total }}</div>
+        <div class="stat-sub">AEC + Non-AEC</div>
+      </a>
+      <a href="{% url 'tenders:list' %}" class="stat-card" style="display:block;">
+        <div class="stat-label">AEC</div>
+        <div class="stat-value">{{ admin_stats.all_aec }}</div>
+        <div class="stat-sub">Classified AEC</div>
+      </a>
+      <a href="{% url 'tenders:list' %}?all=1" class="stat-card" style="display:block;">
+        <div class="stat-label">Non-AEC</div>
+        <div class="stat-value">{{ admin_stats.all_non_aec }}</div>
+        <div class="stat-sub">Other industries</div>
+      </a>
+      <a href="{% url 'tenders:list' %}?all=1&status=OPEN" class="stat-card" style="display:block;">
+        <div class="stat-label">Open (All)</div>
+        <div class="stat-value">{{ admin_stats.open_all }}</div>
+        <div class="stat-sub">Accepting submissions</div>
+      </a>
+      <a href="{% url 'tenders:list' %}?all=1&quick=today" class="stat-card" style="display:block;">
+        <div class="stat-label">Scanned Today</div>
+        <div class="stat-value">{{ admin_stats.all_today }}</div>
+        <div class="stat-sub">All industries</div>
+      </a>
+      <a href="{% url 'tenders:list' %}?all=1" class="stat-card" style="display:block;">
+        <div class="stat-label">Irrelevant</div>
+        <div class="stat-value">{{ admin_stats.irrelevant }}</div>
+        <div class="stat-sub">Filtered out</div>
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="dash-cols">
+
+  <div class="card" style="display:flex;flex-direction:column;">
+    <div class="card-header">
+      <span class="card-title">{% icon 'map' %}AEC Coverage</span>
+      <span class="muted" style="font-size:.72rem;font-weight:600;">{{ aec_tenders }} AEC tenders</span>
+    </div>
+    <div class="card-body" style="flex:1;display:flex;">
+      <div id="aec-map" style="flex:1;width:100%;min-height:430px;background:var(--paper-3);"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">{% icon 'tender' %}Latest AEC Tenders</span>
+      <a href="{% url 'tenders:list' %}?aec=1" class="lk muted" style="font-size:.72rem;font-weight:600;">View all →</a>
+    </div>
+    <div class="card-body">
+      {% if aec_latest %}
+      {% for t in aec_latest %}
+      <a href="{% url 'tenders:detail' t.pk %}" style="display:block;padding:13px 18px;border-bottom:1px solid var(--line);border-left:3px solid transparent;transition:background .12s,border-color .12s;"
+         onmouseover="this.style.background='var(--paper)';this.style.borderLeftColor='var(--yellow)'"
+         onmouseout="this.style.background='';this.style.borderLeftColor='transparent'">
+        <div style="font-weight:600;font-size:.84rem;color:var(--ink);line-height:1.35;margin-bottom:7px;">
+          {{ t.title|truncatechars:74 }}
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+          {% country_flag t.country %}
+          <span class="pill mut">{{ t.get_category_display|default:"—" }}</span>
+          {% if t.submission_deadline %}
+          <span class="pill {% if t.days_remaining is not None and t.days_remaining <= 7 %}bad{% elif t.days_remaining is not None and t.days_remaining <= 21 %}warn{% else %}info{% endif %}" style="margin-left:auto;">
+            {% if t.days_remaining is not None and t.days_remaining >= 0 %}{{ t.days_remaining }}d left{% else %}{{ t.submission_deadline|date:"d M" }}{% endif %}
+          </span>
+          {% endif %}
+        </div>
+      </a>
+      {% endfor %}
+      {% else %}
+      <div style="text-align:center;padding:44px 20px;color:var(--muted);">
+        <div style="margin-bottom:10px;color:var(--muted-2);">{% icon 'building' 30 %}</div>
+        <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">No AEC tenders yet</div>
+        <div style="font-size:.75rem;margin-top:4px;">Run scanners to populate</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="sec-head"><h2>Countries</h2><span class="lk muted">{{ by_country|length }} · star to pin a favourite</span></div>
+
+<div id="fav-wrap" class="fav-panel" style="{% if not favorites %}display:none;{% endif %}">
+  <div class="fav-head">{% icon 'star-filled' 13 %} Your Favourites</div>
+  <div class="cgrid" id="fav-grid">
+    {% for row in favorites %}{% include "tenders/_country_tile.html" %}{% endfor %}
+  </div>
+</div>
+
+{% if by_country %}
+<div class="cgrid" id="all-grid">
+  {% for row in by_country %}{% include "tenders/_country_tile.html" %}{% endfor %}
+</div>
+<button type="button" id="countries-toggle" class="btn btn-ghost btn-sm" style="margin-top:14px;display:none;" onclick="toggleAllCountries(this)">{% icon 'list' %}Show all countries</button>
+{% else %}
+<div class="card" style="text-align:center;padding:44px 20px;color:var(--muted);">
+  <div style="margin-bottom:10px;color:var(--muted-2);">{% icon 'globe' 30 %}</div>
+  <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">No data yet</div>
+  <div style="font-size:.75rem;margin-top:4px;">Run a scanner to populate</div>
+</div>
+{% endif %}
+
+
+{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.min.css' %}"
+      onerror="this.onerror=null;this.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';"/>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/leaflet/leaflet.min.js' %}"></script>
+<style>
+/* Monochrome markers — ink circle, white count, on-brand (no red) */
+.aec-marker{background:var(--ink);border:2px solid var(--yellow);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;font-family:var(--font)}
+.leaflet-popup-content-wrapper{border-radius:0}
+.leaflet-popup-content{margin:11px 14px;font-family:var(--font)}
+.leaflet-container{font-family:var(--font)}
+</style>
+<script>
+// Collapse the Countries grid to the first 2 rows; "Show all" reveals the rest.
+function clampCountries(){
+  var grid=document.getElementById('all-grid'); if(!grid)return;
+  var items=[].slice.call(grid.children); if(!items.length)return;
+  items.forEach(function(el){el.style.display='';});
+  var tops=[];
+  items.forEach(function(el){var t=el.offsetTop; if(tops.indexOf(t)<0)tops.push(t);});
+  var keep=tops.slice(0,2), hidden=0;
+  items.forEach(function(el){ if(keep.indexOf(el.offsetTop)<0){el.style.display='none';hidden++;} });
+  var btn=document.getElementById('countries-toggle');
+  if(btn){ btn.style.display = hidden>0 ? '' : 'none'; btn.textContent='Show all '+items.length+' countries'; }
+}
+function toggleAllCountries(btn){
+  var grid=document.getElementById('all-grid');
+  var items=[].slice.call(grid.children);
+  var anyHidden=items.some(function(el){return el.style.display==='none';});
+  if(anyHidden){ items.forEach(function(el){el.style.display='';}); btn.textContent='Show fewer'; }
+  else { clampCountries(); }
+}
+document.addEventListener('DOMContentLoaded', clampCountries);
+
+function toggleFav(e, code){
+  e.preventDefault(); e.stopPropagation();
+  fetch('/countries/'+code+'/favorite/', {method:'POST', headers:{'X-CSRFToken':getCsrf()}})
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var fav=data.favorite;
+      document.querySelectorAll('.cchip[data-code="'+code+'"]').forEach(function(chip){
+        var star=chip.querySelector('.cstar');
+        if(star) star.classList.toggle('on', fav);
+        chip.classList.toggle('is-fav', fav);
+      });
+      var favGrid=document.getElementById('fav-grid'), favWrap=document.getElementById('fav-wrap');
+      if(fav){
+        var src=document.querySelector('#all-grid .cchip[data-code="'+code+'"]');
+        if(src && !favGrid.querySelector('.cchip[data-code="'+code+'"]')){
+          var clone=src.cloneNode(true);
+          clone.classList.add('is-fav');
+          var cs=clone.querySelector('.cstar'); if(cs) cs.classList.add('on');
+          favGrid.appendChild(clone);
+        }
+        favWrap.style.display='';
+      } else {
+        var f=favGrid.querySelector('.cchip[data-code="'+code+'"]');
+        if(f) f.remove();
+        if(!favGrid.children.length) favWrap.style.display='none';
+      }
+      showToast(fav?'Added to favourites':'Removed from favourites','success');
+    })
+    .catch(function(){ showToast('Could not update favourite','error'); });
+}
+function initAecMap(){
+  if(typeof L==='undefined')return;
+  var mapData={{ aec_map_data|to_json }};
+  var entries=Object.values(mapData);
+  var el=document.getElementById('aec-map'); if(!el)return;
+  // Region-focused view (MENA + N/E Africa) so the map stays filled, not empty ocean.
+  var map=L.map('aec-map',{center:[20,34],zoom:4,minZoom:2,maxZoom:7,scrollWheelZoom:true,zoomControl:true,worldCopyJump:true});
+  // Esri's World Light Gray canvas: the same quiet grey look the CARTO
+  // basemap had, without an API key. CARTO began returning "API KEY
+  // REQUIRED" placeholder tiles for its free basemap in September 2026,
+  // which left the map white behind the markers. Esri serves the {z}/{y}/{x}
+  // order and tops out at zoom 16; the map itself never goes past 7.
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',{
+    attribution:'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors',maxZoom:16
+  }).addTo(map);
+  var S=30;
+  entries.forEach(function(d){
+    var icon=L.divIcon({className:'',html:'<div class="aec-marker" style="width:'+S+'px;height:'+S+'px;">'+d.n+'</div>',iconSize:[S,S],iconAnchor:[S/2,S/2],popupAnchor:[0,-(S/2+4)]});
+    L.marker([d.lat,d.lon],{icon:icon}).addTo(map).bindPopup(
+      '<div style="min-width:150px;"><div style="font-size:.95rem;font-weight:800;margin-bottom:7px;display:flex;align-items:center;gap:7px;"><span style="background:var(--ink);color:var(--yellow);font-size:10px;font-weight:700;padding:2px 5px;letter-spacing:.05em;">'+d.code+'</span> '+d.name+'</div>'+
+      '<div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">'+d.n+' new AEC tender'+(d.n!==1?'s':'')+'</div>'+
+      '<a href="/tenders/?country='+d.code+'&aec=1" style="display:block;background:var(--ink);color:#fff;text-align:center;padding:7px 12px;font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">View tenders →</a></div>',{maxWidth:220});
+  });
+  // Fit to markers but never zoom out past the region (keeps it filled).
+  if(entries.length){
+    try{ map.setView(L.latLngBounds(entries.map(function(d){return [d.lat,d.lon];})).getCenter(),4); }catch(e){}
+  }
+  setTimeout(function(){map.invalidateSize();},200);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAecMap);else initAecMap();
+</script>
+{% endblock %}

@@ -1,0 +1,232 @@
+{# templates/admin/sitesettings_change.html #}
+{% extends "admin/base_site.html" %}
+{% load tender_extras %}
+{% load i18n %}
+
+{% block title %}Site Settings — Scraping Mode | {{ site_title }}{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+.st-wrap {
+    background: #1a1a2e;
+    border-radius: 16px;
+    padding: 40px 48px;
+    max-width: 680px;
+    margin: 32px auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #f9fafb;
+}
+.st-wrap h2 {
+    color: #e2c97e;
+    font-size: 1.55rem;
+    margin: 0 0 6px;
+    letter-spacing: .02em;
+}
+.st-subtitle {
+    color: #9ca3af;
+    font-size: .88rem;
+    margin-bottom: 32px;
+    line-height: 1.6;
+}
+.st-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 20px;
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+}
+.st-badge.filtered { background: #064e3b; color: #6ee7b7; }
+.st-badge.all      { background: #7c2d12; color: #fca5a5; }
+.st-badge .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+.st-badge.filtered .dot { background: #34d399; }
+.st-badge.all .dot      { background: #f87171; }
+@keyframes pulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: .4; }
+}
+.st-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    background: #111827;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    border: 1px solid #374151;
+}
+.st-toggle-label { flex: 1; }
+.st-toggle-label strong {
+    display: block;
+    font-size: 1rem;
+    margin-bottom: 6px;
+    color: #f3f4f6;
+}
+.st-toggle-label small {
+    color: #6b7280;
+    font-size: .82rem;
+    line-height: 1.55;
+}
+.st-switch {
+    position: relative;
+    display: inline-block;
+    width: 76px; height: 40px;
+    flex-shrink: 0;
+}
+.st-switch input { display: none; }
+.st-slider {
+    position: absolute;
+    inset: 0;
+    background: #374151;
+    border-radius: 40px;
+    cursor: pointer;
+    transition: background .3s;
+}
+.st-slider:before {
+    content: '';
+    position: absolute;
+    width: 32px; height: 32px;
+    left: 4px; bottom: 4px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform .3s;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+}
+.st-switch input:checked + .st-slider { background: #f87171; }
+.st-switch input:checked + .st-slider:before { transform: translateX(36px); }
+.st-mode-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: .72rem;
+    color: #6b7280;
+    margin-top: 5px;
+    padding: 0 2px;
+}
+.st-warning {
+    background: #431407;
+    border: 1px solid #92400e;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: .85rem;
+    color: #fcd34d;
+    margin-bottom: 24px;
+    display: none;
+    line-height: 1.5;
+}
+.st-warning.visible { display: block; }
+.st-save-btn {
+    background: #e2c97e;
+    color: #111;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 36px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+}
+.st-save-btn:hover { opacity: .88; transform: translateY(-1px); }
+.st-save-btn:active { transform: translateY(0); }
+.st-meta {
+    border-top: 1px solid #374151;
+    margin-top: 24px;
+    padding-top: 14px;
+    font-size: .78rem;
+    color: #6b7280;
+}
+.st-meta strong { color: #9ca3af; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; Site Settings
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="st-wrap">
+
+    <h2> Scraping Mode</h2>
+    <p class="st-subtitle">
+        Controls how scrapers decide which tenders to save to the database.<br>
+        This setting affects <strong>all users</strong> and all future scraping runs.
+    </p>
+
+    {% if is_all %}
+        <div class="st-badge all"><span class="dot"></span>ALL TENDERS MODE</div>
+    {% else %}
+        <div class="st-badge filtered"><span class="dot"></span>FILTERED MODE</div>
+    {% endif %}
+
+    <form method="post">
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
+        <div class="st-toggle-row">
+            <div class="st-toggle-label">
+                <strong>Save all tenders (disable keyword filter)</strong>
+                <small>
+                    <b>OFF (default):</b> Only tenders that match the relevance keyword
+                    list are saved. Recommended for focused AEC/consultancy results.<br>
+                    <b>ON:</b> Every scraped tender is saved regardless of keywords.
+                    Useful for testing or when you want a full market view.
+                </small>
+            </div>
+            <div>
+                <label class="st-switch">
+                    <input type="checkbox" id="modeToggle"
+                           {% if is_all %}checked{% endif %}
+                           onchange="handleToggle(this.checked)">
+                    <span class="st-slider"></span>
+                </label>
+                <div class="st-mode-labels">
+                    <span>Filtered</span><span>All</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="st-warning" id="allWarning">
+             <strong>Warning:</strong> ALL mode will save every tender from every source —
+            this can produce thousands of irrelevant results and significantly slow down the
+            interface. Only enable this temporarily if needed.
+        </div>
+
+        <input type="hidden" name="scraping_mode" id="modeVal"
+               value="{{ object.scraping_mode }}">
+
+        <button type="submit" class="st-save-btn"> {% icon 'save' %}Save Setting</button>
+    </form>
+
+    <div class="st-meta">
+        Current mode: <strong>{{ current_mode }}</strong> &nbsp;|&nbsp;
+        Last changed by <strong>{{ updated_by }}</strong>
+        at {{ updated_at }}
+    </div>
+
+</div>
+
+<script>
+function handleToggle(isAll) {
+    document.getElementById('modeVal').value = isAll ? 'ALL' : 'FILTERED';
+    var warn = document.getElementById('allWarning');
+    warn.classList.toggle('visible', isAll);
+}
+document.addEventListener('DOMContentLoaded', function() {
+    var toggle = document.getElementById('modeToggle');
+    if (toggle && toggle.checked) {
+        document.getElementById('allWarning').classList.add('visible');
+    }
+});
+</script>
+{% endblock %}

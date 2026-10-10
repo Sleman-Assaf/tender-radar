@@ -1,0 +1,82 @@
+{# templates/it/roles.html — User Role Management #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Roles — System Dashboard{% endblock %}
+{% block eyebrow %}System Dashboard · Role Management{% endblock %}
+{% block page_title %}System Roles{% endblock %}
+{% block page_subtitle %}<p>TenderRadar has two roles. Changing a role takes effect on the user's next request.</p>{% endblock %}
+
+{% block content %}
+{% include "it/_styles.html" %}
+{% with it_section='roles' %}{% include "it/_nav.html" %}{% endwith %}
+
+<div class="it-cols" style="margin-bottom:26px;">
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'shield' %}What each role can do</span></div>
+    <div class="it-list">
+      <div class="it-row">
+        <span class="role-pill SUPER_ADMIN">Super Admin</span>
+        <div class="grow sm">Unrestricted — every module, every company and department, every setting, plus backup restore and role assignment.</div>
+      </div>
+      <div class="it-row">
+        <span class="role-pill USER">Regular User</span>
+        <div class="grow sm">Tender modules only. No access to administration of any kind.</div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">{% icon 'shield' %}Rules enforced by the server</span></div>
+    <div class="card-pad" style="font-size:.82rem;color:var(--muted);line-height:1.8;">
+      · Only a Super Admin can administer accounts or assign roles.<br>
+      · The system always keeps at least one active Super Admin.<br>
+      · You cannot remove your own administrative access or deactivate yourself.<br>
+      · Every role change is written to the <a href="{% url 'tenders:it_logs' %}">audit log</a>.
+    </div>
+  </div>
+</div>
+
+{% for g in groups %}
+<div class="sec-head">
+  <h2>{{ g.label }} — {{ g.users|length }}</h2>
+</div>
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <table class="data-table">
+      <thead><tr><th>User</th><th>Department</th><th>Status</th><th style="width:290px;">Change Role</th></tr></thead>
+      <tbody>
+        {% for u in g.users %}
+        <tr>
+          <td>
+            <div style="font-weight:700;">{{ u.get_full_name|default:u.username }}</div>
+            <div style="font-size:.74rem;color:var(--muted);">{{ u.username }}{% if u.email %} · {{ u.email }}{% endif %}</div>
+          </td>
+          <td>{{ u.profile.department.name|default:"—" }}</td>
+          <td>{% if u.is_active %}<span class="state-pill on">Active</span>{% else %}<span class="state-pill off">Inactive</span>{% endif %}</td>
+          <td>
+            {% if not u.can_edit %}
+              <span style="font-size:.74rem;color:var(--muted-2);">Super Admin only</span>
+            {% elif u.pk == request.user.pk %}
+              <span style="font-size:.74rem;color:var(--muted-2);">Your own account</span>
+            {% else %}
+            <form method="post" action="{% url 'tenders:it_role_change' u.pk %}" style="display:flex;gap:7px;">
+              {% csrf_token %}
+              <select name="role" style="flex:1;background:var(--paper-2);border:1px solid var(--line-2);
+                                          padding:6px 9px;font-size:.78rem;font-family:var(--font);color:var(--ink);">
+                {% for code, label in assignable %}
+                <option value="{{ code }}" {% if code == g.code %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-ghost btn-sm">{% icon 'check' %}Apply</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align:center;padding:26px;color:var(--muted-2);">Nobody has this role.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

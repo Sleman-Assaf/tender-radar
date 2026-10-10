@@ -1,0 +1,231 @@
+{# templates/magazine/detail.html — a News item as an article                  #}
+{#                                                                              #}
+{# Extends the tender detail page and replaces only what does not fit an       #}
+{# article: the status/category badges, the "Tender lifecycle" with its        #}
+{# AEC-match and deadline steps, the portal wording, the deadline in Key dates.#}
+{# My notes, Team notes, @mentions, the share modal and every script are       #}
+{# inherited from the parent — one implementation, not two.                    #}
+{#                                                                              #}
+{# The hero continues the News list's language: the publisher's photo where    #}
+{# there is one, and where there is none the same paper block with a yellow    #}
+{# rule and the reason — the expected quarter for a forthcoming project, the   #}
+{# source's kind for a column with no per-item photo.                          #}
+{% extends "tenders/detail.html" %}
+{% load tender_extras %}
+
+{% block eyebrow %}{% if is_forthcoming %}Future Projects{% else %}News{% endif %} · {{ tender.magazine_meta.magazine_display_en }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ news_back_url }}" class="btn btn-ghost btn-sm">{% icon 'arrow-left' %}Back to {% if is_forthcoming %}Future Projects{% else %}News{% endif %}</a>
+<a href="{% url 'tenders:log_portal_click' tender.pk %}" target="_blank" rel="noopener noreferrer" class="btn btn-yellow btn-sm">{% icon 'external' 14 %} Read on {{ tender.magazine_meta.magazine_display_en }}</a>
+{% if can_administer %}
+<button onclick="adminToggleAEC({{ tender.pk }}, this)" class="btn btn-outline btn-sm" style="cursor:pointer;" title="Override the AI classification (TenderRadar only)">{% if tender.is_aec %}Mark Not AEC{% else %}Mark AEC{% endif %}</button>
+<button onclick="adminDeleteTender({{ tender.pk }})" class="btn btn-sm" style="background:var(--bad);border-color:var(--bad);color:#fff;cursor:pointer;" title="Delete this item permanently (admin only)">{% icon 'trash' %}Delete</button>
+<script>
+function _detailCsrf(){const m=document.cookie.match(/csrftoken=([^;]+)/);return m?m[1]:'';}
+function adminDeleteTender(pk){
+  if(!confirm('Delete this item permanently from the database? This cannot be undone.'))return;
+  fetch(`/tenders/${pk}/delete/`,{method:'POST',headers:{'X-CSRFToken':_detailCsrf(),'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(d=>{if(d.deleted){window.location='{{ news_back_url|escapejs }}';}else{alert(d.error||'Error');}});
+}
+function adminToggleAEC(pk,btn){
+  fetch(`/tenders/${pk}/toggle-aec/`,{method:'POST',headers:{'X-CSRFToken':_detailCsrf(),'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(d=>{if('is_aec' in d){btn.textContent=d.is_aec?'Mark Not AEC':'Mark AEC';window.location.reload();}else{alert(d.error||'Error');}});
+}
+</script>
+{% endif %}
+{% endblock %}
+
+{% block detail_extra_style %}
+<style>
+/* Square corners, the site's paper and ink, the 3px yellow offset on hover —
+   the same vocabulary as the News list, so list → article reads as one place. */
+/* 16:9, the shape these photos come in — 21:9 threw a third of each away.
+   width:100% is load-bearing: with an AUTO width, aspect-ratio + max-height
+   makes the browser shrink the box's WIDTH to keep the ratio once the height
+   caps (560 x 16/9 = 995 px), leaving a gap beside the photo. An explicit
+   width keeps the box full-bleed and lets max-height clamp only the height. */
+.nd-media{position:relative;width:100%;aspect-ratio:16/9;max-height:600px;background:var(--paper-3);overflow:hidden;border-bottom:1px solid var(--line)}
+.nd-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.nd-fallback{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;align-items:center;text-align:center;
+  padding:24px;background:var(--paper-3);border-left:4px solid var(--yellow);color:var(--ink)}
+.nd-noimg .nd-fallback{display:flex}
+.nd-fb-eyebrow{font-family:var(--font);font-weight:700;font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.nd-fb-big{font-family:var(--font);font-weight:700;font-size:clamp(2.2rem,5vw,4rem);line-height:1;letter-spacing:-.02em;color:var(--ink)}
+.nd-fb-src{font-family:var(--font);font-weight:700;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink)}
+.nd-fb-kind{font-size:.8rem;color:var(--muted);margin-top:8px}
+.nd-fb-mark{color:var(--muted-2);margin-bottom:10px;line-height:1}
+.nd-body{padding:22px 28px 26px}
+.nd-meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:.72rem;color:var(--muted);margin-bottom:14px}
+.nd-src{display:inline-flex;align-items:center;height:20px;padding:0 8px;background:var(--yellow);color:var(--ink);font-weight:700;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase}
+.nd-dot{color:var(--line-2)}
+.nd-ar{font-family:var(--font-ar);direction:rtl;text-align:right;font-size:1.18rem;color:var(--ink-2);line-height:1.55;margin:0 0 14px}
+.nd-lede{font-size:1.02rem;line-height:1.7;color:var(--ink-2);max-width:68ch;margin:0}
+.nd-lede-ar{font-family:var(--font-ar);direction:rtl;text-align:right;font-size:.98rem;line-height:1.9;color:var(--muted);margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.nd-facts{display:flex;flex-wrap:wrap;gap:14px 30px;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.nd-facts .k{font-size:.56rem;text-transform:uppercase;letter-spacing:.16em;color:var(--muted-2);font-weight:700;margin-bottom:4px}
+.nd-facts .v{font-size:.86rem;font-weight:700;color:var(--ink)}
+.nd-facts .v-ar{font-family:var(--font-ar);font-size:.78rem;color:var(--muted);direction:rtl;text-align:right;margin-top:2px}
+/* more from this publisher — the list's small cards, three across */
+.nd-more{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.nd-more-card{display:block;text-decoration:none;color:inherit;background:var(--paper-2);border:1px solid var(--line);transition:.14s;min-width:0}
+.nd-more-card:hover{border-color:var(--ink);box-shadow:3px 3px 0 var(--yellow)}
+.nd-more-card .nd-media{aspect-ratio:16/9;max-height:none;border-bottom:1px solid var(--line)}
+.nd-more-card .nd-fb-big{font-size:1.5rem}
+.nd-more-card .nd-fb-src{font-size:.62rem}
+.nd-more-card .nd-fb-kind{display:none}
+.nd-more-card .nd-fb-mark .icon{width:20px;height:20px}
+.nd-more-body{padding:10px 12px 12px}
+.nd-more-body .d{font-size:.66rem;color:var(--muted);margin-bottom:5px}
+.nd-more-body h4{font-family:var(--font);font-weight:700;font-size:.86rem;line-height:1.35;margin:0;color:var(--ink);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nd-more-card:hover h4{box-shadow:inset 0 -2px 0 var(--yellow)}
+</style>
+{% endblock %}
+
+{% block detail_head %}
+{% with meta=tender.magazine_meta %}
+<div class="nd-media {% if not meta.image_url %}nd-noimg{% endif %}">
+  {% if meta.image_url %}
+  {% comment %} The large rendition for the hero; the card one as the small candidate and
+     the fallback. The browser picks by its own width and pixel density. {% endcomment %}
+  <img src="{{ meta.image_url_large|default:meta.image_url }}"
+       {% if meta.image_url_large and meta.image_url_large != meta.image_url %}srcset="{{ meta.image_url }} 768w, {{ meta.image_url_large }} 1536w"
+       sizes="(max-width: 900px) 100vw, 1100px"{% endif %}
+       alt="" loading="eager" decoding="async" referrerpolicy="no-referrer"
+       onerror="this.closest('.nd-media').classList.add('nd-noimg');this.remove()">
+  {% endif %}
+  <div class="nd-fallback">
+    {% if fallback_label %}<span class="nd-fb-eyebrow">Expected</span><span class="nd-fb-big">{{ fallback_label }}</span>
+    {% else %}<span class="nd-fb-mark">{% icon 'file' 34 %}</span><span class="nd-fb-src">{{ meta.magazine_display_en }}</span>{% endif %}
+    {% if meta.magazine_kind %}<span class="nd-fb-kind">{{ meta.magazine_kind }}</span>{% endif %}
+  </div>
+</div>
+
+<div class="nd-body">
+  <div class="nd-meta">
+    <span class="nd-src">{{ meta.magazine_display_en }}</span>
+    {# A forecast has no publication to date - it states the quarter the work is expected in instead. #}
+    {% if is_forthcoming %}{% if fallback_label %}<span class="nd-dot">·</span><span>Expected {{ fallback_label }}</span>{% endif %}{% elif tender.publication_date %}<span class="nd-dot">·</span><span>Published {{ tender.publication_date|date:"d M Y" }}</span>{% endif %}
+    {% if tender.country %}<span class="nd-dot">·</span>{% country_flag tender.country 'sm' %}<span>{{ tender.country.name_en }}</span>{% endif %}
+    {% if is_new %}<span class="badge badge-new">New</span>{% endif %}
+  </div>
+
+  {% if tender.title_ar and tender.title_ar != tender.title %}<div class="nd-ar">{{ tender.title_ar }}</div>{% endif %}
+
+  {% if standfirst %}<p class="nd-lede">{{ standfirst }}</p>{% endif %}
+  {% if tender.description_ar %}<div class="nd-lede-ar">{{ tender.description_ar }}</div>{% endif %}
+
+  {% if tender.entity or meta.listing_url %}
+  <div class="nd-facts">
+    {% if tender.entity %}
+    <div>
+      <div class="k">{% if is_forthcoming %}Client{% else %}Named in the article{% endif %}</div>
+      <div class="v">{{ tender.entity }}</div>
+      {% if tender.entity_ar and tender.entity_ar != tender.entity %}<div class="v-ar">{{ tender.entity_ar }}</div>{% endif %}
+    </div>
+    {% endif %}
+    {% if meta.listing_url %}
+    <div>
+      <div class="k">Found on</div>
+      <div class="v"><a href="{{ meta.listing_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{% icon 'external' 13 %} {{ meta.magazine_display_en }} listing</a></div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endwith %}
+{% endblock %}
+
+{% comment %} The lede already carries the standfirst; a second "Description" box would
+   repeat it with the [DESIGN] tag showing. {% endcomment %}
+{% block detail_description %}{% endblock %}
+
+{% comment %} An article has no lifecycle. Its slot shows more from the same publisher,
+   in the list's own card language, so the reader can keep going. {% endcomment %}
+{% block detail_lifecycle %}
+{% if more_from_source %}
+<div class="sec">
+  <div class="slbl"><span class="l">More from {{ tender.magazine_meta.magazine_display_en }}</span>
+    <a class="x" href="{{ news_back_url }}&magazine={{ tender.magazine_meta.magazine }}" style="text-decoration:none;">All {{ tender.magazine_meta.magazine_display_en }} →</a></div>
+  <div class="nd-more">
+    {% for m in more_from_source %}
+    <a class="nd-more-card" href="{% url 'tenders:detail' m.pk %}">
+      <div class="nd-media {% if not m.magazine_meta.image_url %}nd-noimg{% endif %}">
+        {% if m.magazine_meta.image_url %}
+        <img src="{{ m.magazine_meta.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer"
+             onerror="this.closest('.nd-media').classList.add('nd-noimg');this.remove()">
+        {% endif %}
+        <div class="nd-fallback">
+          {% if m.fallback_label %}<span class="nd-fb-big">{{ m.fallback_label }}</span>
+          {% else %}<span class="nd-fb-mark">{% icon 'file' 20 %}</span><span class="nd-fb-src">{{ m.magazine_meta.magazine_display_en }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="nd-more-body">
+        {# A list of other posts, so it follows the list rule: no date. A forecast still states its quarter. #}
+        <div class="d">{% if m.magazine_meta.quarter_display %}{{ m.magazine_meta.quarter_display }}{% else %}&nbsp;{% endif %}</div>
+        <h4>{{ m.title }}</h4>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block detail_actions %}
+<div class="sblk">
+  <div class="slbl"><span class="l">Quick actions</span></div>
+  <div class="qa">
+    <a href="{% url 'tenders:log_portal_click' tender.pk %}" target="_blank" rel="noopener noreferrer" class="btn btn-yellow" style="justify-content:center;">{% icon 'external' 14 %} Read on {{ tender.magazine_meta.magazine_display_en }}</a>
+    <button id="bookmark-btn" onclick="toggleBookmark({{ tender.pk }}, this)"
+      class="btn {% if is_bookmarked %}btn-yellow{% else %}btn-outline{% endif %}" style="justify-content:center;width:100%;">
+      {% icon 'bookmark' 15 %} {% if is_bookmarked %}Bookmarked{% else %}Bookmark{% endif %}
+    </button>
+    <button type="button" onclick="openShareModal()" class="btn btn-black" style="justify-content:center;width:100%;">{% icon 'users' 15 %} Send to team</button>
+    <a href="{{ news_back_url }}&magazine={{ tender.magazine_meta.magazine }}" class="btn btn-ghost" style="justify-content:center;">{% icon 'newspaper' 14 %} More from {{ tender.magazine_meta.magazine_display_en }}</a>
+    {% if tender.country %}
+    <a href="{{ news_back_url }}&q={{ tender.country.name_en|urlencode }}" class="btn btn-ghost" style="justify-content:center;">{% icon 'globe' 14 %} More from {{ tender.country.name_en }}</a>
+    {% endif %}
+  </div>
+
+  {% if tender.is_aec %}
+  <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:15px;">
+    <div class="mini-lbl" style="margin-bottom:6px;">AEC classification</div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:11px;line-height:1.5;">Is this {% if is_forthcoming %}project{% else %}story{% endif %} correctly classified as AEC-relevant?</div>
+    <div style="display:flex;gap:8px;">
+      <button id="aec-up-btn" onclick="submitAECFeedback({{ tender.pk }}, 'UP', this)"
+        class="btn {% if user_aec_vote == 'UP' %}btn-green{% else %}btn-outline{% endif %}" style="flex:1;justify-content:center;gap:6px;">
+        {% icon 'thumbs-up' 15 %} Yes <span id="aec-up-count" style="font-weight:900;">{{ aec_up_count }}</span>
+      </button>
+      <button id="aec-down-btn" onclick="submitAECFeedback({{ tender.pk }}, 'DOWN', this)"
+        class="btn {% if user_aec_vote == 'DOWN' %}btn-red{% else %}btn-outline{% endif %}" style="flex:1;justify-content:center;gap:6px;">
+        {% icon 'thumbs-down' 15 %} No <span id="aec-down-count" style="font-weight:900;">{{ aec_down_count }}</span>
+      </button>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% comment %} Published, and for a forthcoming project the quarter it is expected in.
+   No submission deadline, and no "first seen" — that is TenderRadar's own
+   bookkeeping and lives in System info below. {% endcomment %}
+{% block detail_keydates %}
+<div class="sblk">
+  <div class="slbl"><span class="l">Key dates</span></div>
+  <div class="kd">
+    {% comment %} Expected quarter for a forecast, publication date for a story - one or
+       the other, never both. This printed "Expected Q4 2026" twice on every
+       Ashghal article, because the block below repeated what the block above
+       had already shown from the same fact under a different name. {% endcomment %}
+    {% if is_forthcoming %}
+      {% if fallback_label %}
+      <div><div class="k">Expected</div><div class="v" style="font-size:1.05rem;">{{ fallback_label }}</div></div>
+      {% endif %}
+    {% elif tender.publication_date %}
+    <div><div class="k">Published</div><div class="v">{{ tender.publication_date|date:"d M Y" }}</div></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}My Teams — TenderRadar{% endblock %}
+{% block eyebrow %}Account · Collaboration{% endblock %}
+{% block page_title %}My Teams{% endblock %}
+{% block page_actions %}
+{% if is_leader %}<a href="{% url 'tenders:team_create' %}" class="btn btn-yellow btn-sm">{% icon 'plus' 14 %} New Team</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if led_teams %}
+<div class="sec-head"><h2>Teams You Lead</h2></div>
+<div class="tgrid">
+  {% for team in led_teams %}
+  <div class="team-card">
+    <div class="team-ic">{% icon 'users' 20 %}</div>
+    <a href="{% url 'tenders:team_detail' team.pk %}" class="team-name">{{ team.name }}</a>
+    {% if team.description %}<div class="team-desc">{{ team.description }}</div>{% endif %}
+    <div class="team-meta">
+      <span class="pill mut">{{ team.members.count }} member{{ team.members.count|pluralize }}</span>
+    </div>
+    <div class="team-names">{% for m in team.members.all %}{{ m.get_full_name|default:m.username }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+    <div class="team-actions">
+      <a href="{% url 'tenders:team_edit' team.pk %}" class="btn btn-ghost btn-sm">{% icon 'edit' 13 %} Edit</a>
+      <form method="post" action="{% url 'tenders:team_delete' team.pk %}" onsubmit="return confirm('Delete team {{ team.name }}?');" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' 13 %} Delete</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if joined_teams %}
+<div class="sec-head" style="margin-top:34px;"><h2>Teams You're In</h2></div>
+<div class="tgrid">
+  {% for team in joined_teams %}
+  <a href="{% url 'tenders:team_detail' team.pk %}" class="team-card team-card-link">
+    <div class="team-ic">{% icon 'users' 20 %}</div>
+    <div class="team-name">{{ team.name }}</div>
+    <div class="team-desc">Led by {{ team.leader.get_full_name|default:team.leader.username }}</div>
+    <div class="team-meta"><span class="pill mut">{{ team.members.count }} member{{ team.members.count|pluralize }}</span></div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# Administrators manage every team, including ones they are not part of. #}
+{% if is_admin and all_teams %}
+<div class="sec-head" style="margin-top:34px;">
+  <h2>All Teams</h2>
+  <span class="pill mut">Administrator</span>
+</div>
+<div class="tgrid">
+  {% for team in all_teams %}
+  <div class="team-card">
+    <div class="team-ic">{% icon 'users' 20 %}</div>
+    <a href="{% url 'tenders:team_detail' team.pk %}" class="team-name">{{ team.name }}</a>
+    <div class="team-desc">
+      Led by {{ team.leader.get_full_name|default:team.leader.username }}
+      {% if team.description %}<br>{{ team.description }}{% endif %}
+    </div>
+    <div class="team-meta">
+      <span class="pill mut">{{ team.members.count }} member{{ team.members.count|pluralize }}</span>
+    </div>
+    <div class="team-names">{% for m in team.members.all %}{{ m.get_full_name|default:m.username }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+    <div class="team-actions">
+      <a href="{% url 'tenders:team_edit' team.pk %}" class="btn btn-ghost btn-sm">{% icon 'edit' 13 %} Edit</a>
+      <form method="post" action="{% url 'tenders:team_delete' team.pk %}" onsubmit="return confirm('Delete team {{ team.name }}? This cannot be undone.');" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm">{% icon 'trash' 13 %} Delete</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not led_teams and not joined_teams and not all_teams %}
+<div class="card" style="text-align:center;padding:56px 20px;">
+  <div style="margin-bottom:12px;color:var(--muted-2);">{% icon 'users' 34 %}</div>
+  <div style="font-weight:700;font-size:.95rem;margin-bottom:8px;">No teams yet</div>
+  <div style="font-size:.82rem;color:var(--muted);">
+    {% if is_admin %}Create a team and add people to it. You can set anyone as its leader.{% elif is_leader %}Create a team to share tender notes with colleagues.{% else %}Ask your team leader to add you to a team.{% endif %}
+  </div>
+  {% if is_leader %}<a href="{% url 'tenders:team_create' %}" class="btn btn-yellow btn-sm" style="margin-top:16px;">{% icon 'plus' 14 %} New Team</a>{% endif %}
+</div>
+{% endif %}
+
+<style>
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.team-card{display:flex;flex-direction:column;background:var(--paper-2);border:1px solid var(--line);border-top:3px solid var(--line-2);padding:22px;transition:border-color .15s,transform .12s,box-shadow .12s;color:var(--ink);text-decoration:none}
+.team-card:hover{border-top-color:var(--yellow);transform:translateY(-2px);box-shadow:var(--shadow)}
+.team-ic{width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--yellow);margin-bottom:14px}
+.team-name{font-weight:700;font-size:1.05rem;letter-spacing:-.01em;color:var(--ink);text-decoration:none}
+a.team-name:hover{box-shadow:inset 0 -2px 0 var(--yellow)}
+.team-desc{font-size:.82rem;color:var(--muted);margin-top:6px;line-height:1.5;flex:1}
+.team-meta{margin-top:12px}
+.team-names{font-size:.74rem;color:var(--muted-2);margin-top:8px;line-height:1.5}
+.team-actions{display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+</style>
+{% endblock %}

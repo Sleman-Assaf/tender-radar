@@ -1,0 +1,27 @@
+{# templates/403.html — branded permission-denied page (Django's handler403) #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Access Denied — TenderRadar{% endblock %}
+{% block eyebrow %}HTTP 403 · Forbidden{% endblock %}
+{% block page_title %}Access Denied{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:620px;">
+  <div class="card-header"><span class="card-title">{% icon 'lock' %}You do not have permission</span></div>
+  <div class="card-pad" style="font-size:.88rem;line-height:1.8;color:var(--ink-2);">
+    <p style="margin-bottom:14px;">
+      {% if exception %}{{ exception }}{% else %}This page is restricted to administrators.{% endif %}
+    </p>
+    <p style="color:var(--muted);font-size:.82rem;">
+      You are signed in as <b>{{ request.user.username }}</b>{% if user_role_display %} ({{ user_role_display }}){% endif %}.
+      If you need access, ask the Super Admin to change your system role.
+    </p>
+    <div style="display:flex;gap:9px;margin-top:20px;">
+      <a href="{% url 'tenders:dashboard' %}" class="btn btn-gold btn-sm">{% icon 'dashboard' %}Back to Dashboard</a>
+      {% if can_administer %}
+      <a href="{% url 'tenders:it_dashboard' %}" class="btn btn-ghost btn-sm">{% icon 'settings' %}System Dashboard</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

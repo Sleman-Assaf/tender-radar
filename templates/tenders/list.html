@@ -1,0 +1,367 @@
+{# templates/tenders/list.html #}
+{% extends "base.html" %}
+{% load tender_extras %}
+{% block title %}Tenders — TenderRadar | AJi{% endblock %}
+{% block eyebrow %}Procurement · Live Feed{% endblock %}
+{% block page_title %}Engineering Tenders{% endblock %}
+
+{% block page_actions %}
+<span class="pill mut" style="font-size:.72rem;">
+  {{ page_obj.paginator.count }} result{{ page_obj.paginator.count|pluralize }}
+</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="card mb-4" style="border-top:3px solid var(--yellow);overflow:visible;">
+  <form method="get" id="filter-form" style="padding:16px 18px 12px;">
+
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:12px;">
+      <div style="flex:3;min-width:220px;">
+        <div class="tc-label">Search — EN / AR</div>
+        <input type="text" name="q" value="{{ active_filters.q }}" placeholder="Title, reference, entity… (English or Arabic)" class="form-control"/>
+      </div>
+      <div style="min-width:130px;">
+        <div class="tc-label">Status</div>
+        <select name="status" class="form-control">
+          <option value="">All Statuses</option>
+          {% for code, label in statuses %}
+          <option value="{{ code }}" {% if active_filters.status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="min-width:190px;position:relative;">
+        <div class="tc-label">Categories</div>
+        <div class="ms-dropdown" id="ms-category">
+          <div class="ms-toggle" onclick="toggleMS('ms-category')">
+            <span class="ms-label" id="ms-category-label">{% if active_filters.category %}{{ active_filters.category|length }} selected{% else %}All Categories{% endif %}</span>
+            {% icon 'chevron-down' 14 %}
+          </div>
+          <div class="ms-panel" id="ms-category-panel">
+            <input type="text" class="ms-search" placeholder="Search category…" oninput="filterMS('ms-category',this.value)">
+            <div class="ms-options">
+              {% for code, label in categories %}
+              <label class="ms-option" data-name="{{ label }}">
+                <input type="checkbox" name="category" value="{{ code }}" {% if code in active_filters.category %}checked{% endif %}>
+                <span>{{ label }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="ms-foot"><button type="button" class="ms-clear" onclick="clearMS('ms-category')">{% icon 'x-circle' %}Clear categories</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="min-width:200px;position:relative;">
+        <div class="tc-label">Countries</div>
+        <div class="ms-dropdown" id="ms-country">
+          <div class="ms-toggle" onclick="toggleMS('ms-country')">
+            <span class="ms-label" id="ms-country-label">{% if active_filters.country %}{{ active_filters.country|length }} selected{% else %}All Countries{% endif %}</span>
+            {% icon 'chevron-down' 14 %}
+          </div>
+          <div class="ms-panel" id="ms-country-panel">
+            <input type="text" class="ms-search" placeholder="Search country…" oninput="filterMS('ms-country',this.value)">
+            <div class="ms-options">
+              {% for c in countries %}
+              <label class="ms-option" data-name="{{ c.name_en }}">
+                <input type="checkbox" name="country" value="{{ c.code }}" {% if c.code in active_filters.country %}checked{% endif %}>
+                {% country_flag c %}<span style="margin-left:6px;">{{ c.name_en }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="ms-foot"><button type="button" class="ms-clear" onclick="clearMS('ms-country')">{% icon 'x-circle' %}Clear countries</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="min-width:200px;position:relative;">
+        <div class="tc-label">Sources</div>
+        <div class="ms-dropdown" id="ms-source">
+          <div class="ms-toggle" onclick="toggleMS('ms-source')">
+            <span class="ms-label" id="ms-source-label">{% if active_filters.source %}{{ active_filters.source|length }} selected{% else %}All Sources{% endif %}</span>
+            {% icon 'chevron-down' 14 %}
+          </div>
+          <div class="ms-panel" id="ms-source-panel">
+            <input type="text" class="ms-search" placeholder="Search source…" oninput="filterMS('ms-source',this.value)">
+            <div class="ms-options">
+              {% for src in all_sources %}
+              <label class="ms-option" data-name="{{ src.name }}">
+                <input type="checkbox" name="source" value="{{ src.id }}" {% if src.id|stringformat:'d' in active_filters.source %}checked{% endif %}>
+                {% country_flag src.country %}<span style="margin-left:6px;">{{ src.name }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="ms-foot"><button type="button" class="ms-clear" onclick="clearMS('ms-source')">{% icon 'x-circle' %}Clear sources</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+      <div style="min-width:130px;">
+        <div class="tc-label">Discovered From</div>
+        <input type="date" name="date_from" value="{{ active_filters.date_from }}" class="form-control"/>
+      </div>
+      <div style="min-width:130px;">
+        <div class="tc-label">Discovered To</div>
+        <input type="date" name="date_to" value="{{ active_filters.date_to }}" class="form-control"/>
+      </div>
+
+      <div>
+        <div class="tc-label">Quick Filter</div>
+        <div style="display:flex;gap:6px;">
+          <button type="button" onclick="quickFilter('today')" class="btn btn-sm {% if active_filters.quick == 'today' %}btn-black{% else %}btn-ghost{% endif %}">Today</button>
+          <button type="button" onclick="quickFilter('3days')" class="btn btn-sm {% if active_filters.quick == '3days' %}btn-black{% else %}btn-ghost{% endif %}">3 Days</button>
+          <button type="button" onclick="quickFilter('week')" class="btn btn-sm {% if active_filters.quick == 'week' %}btn-black{% else %}btn-ghost{% endif %}">7 Days</button>
+          <button type="button" onclick="quickFilter('month')" class="btn btn-sm {% if active_filters.quick == 'month' %}btn-black{% else %}btn-ghost{% endif %}">30 Days</button>
+        </div>
+      </div>
+      <input type="hidden" name="quick" id="quick-input" value="{{ active_filters.quick }}">
+
+      <div style="flex:1;"></div>
+
+      <div style="display:flex;align-items:flex-end;gap:14px;">
+        {% if request.user.is_superuser %}
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding-bottom:9px;" title="Include non-AEC tenders">
+          <input type="checkbox" name="all" value="1" {% if active_filters.all %}checked{% endif %} onchange="this.form.submit()" style="accent-color:var(--yellow);width:14px;height:14px;"/> All Tenders
+        </label>
+        {% endif %}
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding-bottom:9px;">
+          <input type="checkbox" name="bookmarked" value="1" {% if active_filters.bookmarked %}checked{% endif %} onchange="this.form.submit()" style="accent-color:var(--yellow);width:14px;height:14px;"/> Bookmarked
+        </label>
+      </div>
+
+      <button type="submit" class="btn btn-black">{% icon 'search' %}Search</button>
+      <a href="{% url 'tenders:list' %}" class="btn btn-ghost">{% icon 'x-circle' %}Clear</a>
+    </div>
+  </form>
+</div>
+
+{% if active_filters.q or active_filters.country or active_filters.category or active_filters.status or active_filters.bookmarked or active_filters.aec or active_filters.all or active_filters.source or active_filters.date_from or active_filters.date_to or active_filters.quick %}
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+  <span class="badge" style="background:var(--ink);color:var(--yellow);font-weight:700;">{{ page_obj.paginator.count }} matching tender{{ page_obj.paginator.count|pluralize }}</span>
+  <span class="tc-label" style="margin:0;">Active:</span>
+  {% if active_filters.q %}<span class="badge badge-award">Search: "{{ active_filters.q }}"</span>{% endif %}
+  {% for cc in active_filters.country %}<span class="badge badge-country">{{ cc }}</span>{% endfor %}
+  {% for cat in active_filters.category %}<span class="badge badge-cat">{{ cat }}</span>{% endfor %}
+  {% if active_filters.source %}<span class="badge badge-cat">{{ active_source_name|default:active_filters.source }}</span>{% endif %}
+  {% if active_filters.status %}<span class="badge badge-open">{{ active_filters.status }}</span>{% endif %}
+  {% if active_filters.bookmarked %}<span class="badge badge-award">{% icon 'bookmark' 11 %} Bookmarked</span>{% endif %}
+  {% if active_filters.aec %}<span class="badge">AEC Related</span>{% endif %}
+  {% if active_filters.all %}<span class="badge badge-open">All Tenders (AEC + Non-AEC)</span>{% endif %}
+  {% if active_filters.quick == 'today' %}<span class="badge badge-open">Today</span>{% endif %}
+  {% if active_filters.quick == '3days' %}<span class="badge badge-open">Last 3 Days</span>{% endif %}
+  {% if active_filters.quick == 'week' %}<span class="badge badge-open">Last 7 Days</span>{% endif %}
+  {% if active_filters.quick == 'month' %}<span class="badge badge-open">Last 30 Days</span>{% endif %}
+  {% if active_filters.date_from and not active_filters.quick %}<span class="badge badge-open">From {{ active_filters.date_from }}</span>{% endif %}
+  {% if active_filters.date_to and not active_filters.quick %}<span class="badge badge-open">To {{ active_filters.date_to }}</span>{% endif %}
+</div>
+{% endif %}
+
+<style>
+.tender-card{border:none;border-bottom:1px solid var(--line);padding:14px 16px;display:grid;grid-template-columns:44px 1fr 130px 150px 170px 90px 110px 82px 96px;gap:0 12px;align-items:start;transition:background .13s;background:var(--paper-2)}
+.tender-card:hover{background:var(--paper)}
+.tender-card:last-child{border-bottom:none}
+.tender-card.row-urgent{box-shadow:inset 3px 0 0 var(--bad)}
+.tender-card.row-expiring{box-shadow:inset 3px 0 0 var(--ink-2)}
+.tender-card.row-new{box-shadow:inset 3px 0 0 var(--yellow)}
+.tc-head{display:grid;grid-template-columns:44px 1fr 130px 150px 170px 90px 110px 82px 96px;gap:0 12px;padding:10px 16px 8px;background:var(--paper-2);border-bottom:1px solid var(--ink);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.tender-title-en{font-weight:700;font-size:.86rem;color:var(--ink);line-height:1.4;display:block;text-decoration:none;word-break:break-word}
+.tender-title-en:hover{box-shadow:inset 0 -2px 0 var(--yellow)}
+.tender-title-ar{font-family:var(--font-ar);font-size:.8rem;color:var(--muted);direction:rtl;text-align:right;line-height:1.5;margin-top:5px;padding-top:5px;border-top:1px dashed var(--line);display:block;word-break:break-word}
+.tc-meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center}
+.tc-actions{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:2px}
+.tc-col{font-size:.78rem;color:var(--muted);line-height:1.4}
+.tc-label{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px}
+.vote-btn{border:1px solid var(--line-2);background:var(--paper-3);color:var(--muted);cursor:pointer;font-size:.72rem;padding:2px 6px;width:34px}
+.vote-btn.up-on{background:var(--ok);border-color:var(--ok);color:#fff}
+.vote-btn.down-on{background:var(--bad);border-color:var(--bad);color:#fff}
+/* Small screens: the 9-column grid is wider than the viewport and the parent
+   .card clips it — stack the columns instead (each has its own label). */
+@media (max-width:900px){
+  .tc-head{display:none}
+  .tender-card{display:block}
+  .tc-actions{flex-direction:row;margin-bottom:8px}
+  .tender-card > div{margin-bottom:10px}
+  .tender-card > div:last-child{margin-bottom:0}
+}
+</style>
+
+<div class="card" style="overflow:hidden;">
+  <div class="tc-head">
+    <div></div><div>Title</div><div>Country</div><div>Source</div><div>Entity</div><div>Value</div><div>Deadline</div><div>Status</div><div></div>
+  </div>
+
+  {% for t in tenders %}
+  <div class="tender-card {% if t.is_new %}row-new{% endif %} {% if t.days_remaining is not None and t.days_remaining >= 0 and t.days_remaining <= 3 %}row-urgent{% elif t.days_remaining is not None and t.days_remaining > 3 and t.days_remaining <= 7 %}row-expiring{% endif %}">
+
+    <div class="tc-actions">
+      {% if t.is_aec %}
+      <button onclick="listAECFeedback({{ t.pk }}, 'UP', this)" id="aec-up-{{ t.pk }}" title="Accurate AEC" class="vote-btn {% if t.user_aec_vote == 'UP' %}up-on{% endif %}">{% icon 'thumbs-up' 15 %}</button>
+      {% endif %}
+      <button onclick="toggleBookmark({{ t.pk }}, this)" style="background:none;border:none;cursor:pointer;font-size:1.15rem;line-height:1;color:{% if t.is_bookmarked %}var(--yellow-deep){% else %}var(--grey-3){% endif %};" title="{% if t.is_bookmarked %}Remove bookmark{% else %}Bookmark{% endif %}">{% icon 'bookmark' 17 %}</button>
+      {% if t.is_aec %}
+      <button onclick="listAECFeedback({{ t.pk }}, 'DOWN', this)" id="aec-down-{{ t.pk }}" title="Not AEC" class="vote-btn {% if t.user_aec_vote == 'DOWN' %}down-on{% endif %}">{% icon 'thumbs-down' 15 %}</button>
+      {% endif %}
+    </div>
+
+    <div>
+      <a href="{% url 'tenders:detail' t.pk %}" class="tender-title-en">{{ t.title }}</a>
+      {% if t.title_ar and t.title_ar != t.title %}<span class="tender-title-ar">{{ t.title_ar }}</span>{% endif %}
+      <div class="tc-meta">
+        {% if t.is_new %}<span class="badge badge-new">New</span>{% endif %}
+        {% if t.is_aec %}<span class="badge">AEC</span>{% endif %}
+        {% if t.days_remaining is not None and t.days_remaining >= 0 and t.days_remaining <= 3 %}<span class="badge badge-urgent">{{ t.days_remaining }}d left</span>{% endif %}
+        {% if t.reference_no %}<span style="font-size:.66rem;color:var(--muted-2);">Ref: {{ t.reference_no }}</span>{% endif %}
+      </div>
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Country</div>
+      {% country_flag t.country %}<span style="margin-left:6px;color:var(--ink);white-space:nowrap;">{{ t.country.name_en|default:"—" }}</span>
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Source</div>
+      {% if t.source %}
+      <a href="{% url 'tenders:list' %}?source={{ t.source.id }}" title="{{ t.source.name }}">
+        <span class="pill mut" style="max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;">{{ t.source.name|truncatechars:26 }}</span>
+      </a>
+      {% else %}<span class="muted">—</span>{% endif %}
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Entity</div>
+      <span title="{{ t.entity }}" style="color:var(--ink);">{{ t.entity|truncatechars:40|default:"—" }}</span>
+      {% if t.entity_ar and t.entity_ar != t.entity %}<div class="ar" style="font-size:.72rem;color:var(--muted);margin-top:2px;">{{ t.entity_ar|truncatechars:35 }}</div>{% endif %}
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Value</div>
+      <span style="font-weight:700;color:var(--ink);">{{ t.estimated_value|format_value:t.currency }}</span>
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Deadline</div>
+      {% if t.submission_deadline %}
+        <span style="font-weight:{% if t.days_remaining is not None and t.days_remaining <= 7 and not t.is_expired %}700{% else %}500{% endif %};color:{% if t.is_expired %}var(--muted-2){% elif t.days_remaining <= 7 %}var(--bad){% else %}var(--ink){% endif %};">{{ t.submission_deadline|date:"d M Y" }}</span>
+        {% if not t.is_expired and t.days_remaining is not None %}<div style="font-size:.66rem;color:var(--muted-2);margin-top:1px;">{% if t.days_remaining == 0 %}Today!{% elif t.days_remaining > 0 %}{{ t.days_remaining }}d left{% else %}Expired{% endif %}</div>{% endif %}
+      {% else %}<span class="muted">—</span>{% endif %}
+    </div>
+
+    <div class="tc-col">
+      <div class="tc-label">Status</div>
+      {% if t.status == 'OPEN' %}<span class="badge badge-open">Open</span>
+      {% elif t.status == 'CLOSED' %}<span class="badge badge-closed">Closed</span>
+      {% elif t.status == 'AWARD' or t.status == 'AWARDED' %}<span class="badge badge-award">Awarded</span>
+      {% elif t.status == 'CANCEL' %}<span class="badge badge-cancel">Cancelled</span>
+      {% else %}<span class="badge badge-closed">{{ t.get_status_display }}</span>{% endif %}
+    </div>
+
+    <div style="padding-top:2px;display:flex;flex-direction:column;gap:6px;">
+      <a href="{% url 'tenders:detail' t.pk %}" class="btn btn-black btn-sm" style="white-space:nowrap;text-align:center;justify-content:center;">{% icon 'eye' %}View →</a>
+      {% if can_administer %}
+      <button onclick="deleteTender({{ t.pk }}, this)" class="btn btn-sm" style="white-space:nowrap;text-align:center;justify-content:center;background:var(--bad);border-color:var(--bad);color:#fff;cursor:pointer;" title="Delete this tender permanently (admin only)">{% icon 'trash' %}Delete</button>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div style="text-align:center;padding:60px 20px;color:var(--muted);">
+    <div style="margin-bottom:12px;color:var(--muted-2);">{% icon 'inbox' 34 %}</div>
+    <div style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.84rem;margin-bottom:8px;">No tenders found</div>
+    <a href="{% url 'tenders:list' %}" class="btn btn-ghost btn-sm">{% icon 'x-circle' %}Clear filters</a>
+  </div>
+  {% endfor %}
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination">
+  {% if page_obj.has_previous %}
+    <a href="?{% query_transform request page=1 %}" class="page-link">«</a>
+    <a href="?{% query_transform request page=page_obj.previous_page_number %}" class="page-link">‹</a>
+  {% endif %}
+  {% for num in page_obj.paginator.page_range %}
+    {% if page_obj.number == num %}<span class="page-link current">{{ num }}</span>
+    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}<a href="?{% query_transform request page=num %}" class="page-link">{{ num }}</a>{% endif %}
+  {% endfor %}
+  {% if page_obj.has_next %}
+    <a href="?{% query_transform request page=page_obj.next_page_number %}" class="page-link">›</a>
+    <a href="?{% query_transform request page=page_obj.paginator.num_pages %}" class="page-link">»</a>
+  {% endif %}
+  <span class="muted" style="font-size:.72rem;margin-left:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} total
+  </span>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.ms-dropdown{position:relative}
+.ms-toggle{display:flex;justify-content:space-between;align-items:center;padding:8px 11px;border:1px solid var(--line-2);background:var(--paper-2);cursor:pointer;font-size:.82rem;min-height:36px;transition:border-color .15s}
+.ms-toggle:hover{border-color:var(--ink)}
+.ms-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--paper-2);border:1px solid var(--line-2);box-shadow:var(--shadow-lg);z-index:200;width:100%;min-width:240px}
+.ms-panel.open{display:block}
+.ms-search{width:100%;box-sizing:border-box;padding:9px 11px;border:none;border-bottom:1px solid var(--line);font-size:.8rem;outline:none;background:var(--paper);font-family:var(--font)}
+.ms-options{max-height:210px;overflow-y:auto;padding:4px 0}
+.ms-option{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:.8rem;transition:background .1s}
+.ms-option:hover{background:var(--paper)}
+.ms-option input[type=checkbox]{accent-color:var(--yellow);flex-shrink:0}
+.ms-label{color:var(--ink);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms-foot{border-top:1px solid var(--line);padding:6px}
+.ms-clear{width:100%;background:none;border:none;padding:7px;font-family:var(--font);font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);cursor:pointer}
+.ms-clear:hover{color:var(--bad)}
+</style>
+<script>
+function toggleMS(id){
+  document.querySelectorAll('.ms-panel.open').forEach(p=>{if(p.id!==id+'-panel')p.classList.remove('open');});
+  document.getElementById(id+'-panel').classList.toggle('open');
+  updateMSLabels();
+}
+function filterMS(id,q){document.getElementById(id+'-panel').querySelectorAll('.ms-option').forEach(opt=>{opt.style.display=(opt.dataset.name||opt.textContent).toLowerCase().includes(q.toLowerCase())?'':'none';});}
+const MS_DEFAULTS={'ms-country':'All Countries','ms-source':'All Sources','ms-category':'All Categories'};
+function updateMSLabels(){
+  Object.keys(MS_DEFAULTS).forEach(id=>{
+    const panel=document.getElementById(id+'-panel'),label=document.getElementById(id+'-label');if(!panel||!label)return;
+    const checked=panel.querySelectorAll('input[type=checkbox]:checked');
+    if(checked.length===0){label.textContent=MS_DEFAULTS[id];label.style.color='var(--muted)';}
+    else{const names=Array.from(checked).map(c=>{const lbl=c.closest('.ms-option');return lbl&&lbl.dataset.name?lbl.dataset.name:c.value;});label.textContent=names.length<=2?names.join(', '):names.length+' selected';label.style.color='var(--ink)';}
+  });
+}
+function clearMS(id){
+  const panel=document.getElementById(id+'-panel');if(!panel)return;
+  panel.querySelectorAll('input[type=checkbox]:checked').forEach(cb=>{cb.checked=false;});
+  updateMSLabels();
+}
+document.addEventListener('change',e=>{if(e.target.matches('.ms-option input[type=checkbox]'))updateMSLabels();});
+document.addEventListener('click',e=>{if(!e.target.closest('.ms-dropdown')){document.querySelectorAll('.ms-panel.open').forEach(p=>p.classList.remove('open'));}});
+document.addEventListener('DOMContentLoaded',updateMSLabels);
+function quickFilter(period){
+  const qi=document.getElementById('quick-input');
+  if(qi.value===period){qi.value='';}else{qi.value=period;const df=document.querySelector('[name="date_from"]'),dt=document.querySelector('[name="date_to"]');if(df)df.value='';if(dt)dt.value='';}
+  document.getElementById('filter-form').submit();
+}
+function toggleBookmark(pk,btn){
+  fetch(`/tenders/${pk}/bookmark/`,{method:'POST',headers:{'X-CSRFToken':getCsrf(),'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(data=>{btn.style.color=data.bookmarked?'var(--yellow-deep)':'var(--grey-3)';showToast(data.bookmarked?'Bookmarked':'Removed','success');});
+}
+function deleteTender(pk,btn){
+  if(!confirm('Delete this tender permanently from the database? This cannot be undone.'))return;
+  fetch(`/tenders/${pk}/delete/`,{method:'POST',headers:{'X-CSRFToken':getCsrf(),'X-Requested-With':'XMLHttpRequest'}})
+    .then(r=>r.json()).then(data=>{
+      if(data.deleted){const card=btn.closest('.tender-card');if(card)card.remove();showToast('Tender deleted','success');}
+      else{showToast(data.error||'Error','error');}
+    }).catch(()=>showToast('Error','error'));
+}
+function listAECFeedback(pk,vote,clickedBtn){
+  const fd=new FormData();fd.append('vote',vote);
+  fetch(`/tenders/${pk}/aec-feedback/`,{method:'POST',headers:{'X-CSRFToken':getCsrf(),'X-Requested-With':'XMLHttpRequest'},body:fd})
+    .then(r=>r.json()).then(data=>{
+      const upBtn=document.getElementById(`aec-up-${pk}`),downBtn=document.getElementById(`aec-down-${pk}`);
+      if(data.vote==='UP'){if(upBtn){upBtn.className='vote-btn up-on';}if(downBtn){downBtn.className='vote-btn';}showToast('Marked accurate','success');}
+      else{if(downBtn){downBtn.className='vote-btn down-on';}if(upBtn){upBtn.className='vote-btn';}showToast('Marked not AEC','success');}
+    }).catch(()=>showToast('Error','error'));
+}
+</script>
+{% endblock %}

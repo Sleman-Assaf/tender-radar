@@ -1,0 +1,29 @@
+{% comment %} templates/it/_nav.html — the System Dashboard's own module strip.
+
+   Every administrative module hangs off this one bar, which is why none of
+   them appear in the main site navigation. `it_section` is set by each page.
+
+   The second row holds the modules that used to live under the main "System"
+   dropdown (content, integrations, reports, factory). They keep their original
+   URLs and views — only the way in changed. {% endcomment %}
+{% load tender_extras %}
+<nav class="itnav">
+  <a href="{% url 'tenders:it_dashboard' %}"   class="{% if it_section == 'dashboard' %}active{% endif %}">{% icon 'dashboard' %}Dashboard</a>
+  <a href="{% url 'tenders:it_users' %}"       class="{% if it_section == 'users' %}active{% endif %}">{% icon 'users' %}Users</a>
+  <a href="{% url 'tenders:it_roles' %}"       class="{% if it_section == 'roles' %}active{% endif %}">{% icon 'shield' %}Roles</a>
+  <a href="{% url 'tenders:it_companies' %}"   class="{% if it_section == 'companies' %}active{% endif %}">{% icon 'building' %}Companies</a>
+  <a href="{% url 'tenders:it_departments' %}" class="{% if it_section == 'departments' %}active{% endif %}">{% icon 'department' %}Departments</a>
+  <a href="{% url 'tenders:it_backups' %}"     class="{% if it_section == 'backups' %}active{% endif %}">{% icon 'backup' %}Backup &amp; Restore</a>
+  <a href="{% url 'tenders:it_settings' %}"    class="{% if it_section == 'settings' %}active{% endif %}">{% icon 'sliders' %}Settings</a>
+  <a href="{% url 'tenders:it_logs' %}"        class="{% if it_section == 'logs' %}active{% endif %}">{% icon 'clipboard' %}System Logs</a>
+</nav>
+<nav class="itnav itnav-2">
+  <a href="{% url 'tenders:manage_hub' %}"     class="{% if it_section == 'content' %}active{% endif %}">{% icon 'tender' %}Tender System</a>
+  <a href="{% url 'tenders:sources' %}"        class="{% if it_section == 'sources' %}active{% endif %}">{% icon 'database' %}Sources</a>
+  <a href="{% url 'tenders:manage_integrations' %}" class="{% if it_section == 'integrations' %}active{% endif %}">{% icon 'message' %}Integrations</a>
+  <a href="{% url 'tenders:manage_digest' %}"  class="{% if it_section == 'digest' %}active{% endif %}">{% icon 'bell' %}Notifications</a>
+  <a href="{% url 'tenders:analytics_hub' %}"  class="{% if it_section == 'analytics' %}active{% endif %}">{% icon 'chart' %}Analytics</a>
+  <a href="{% url 'newspaper_tenders:non_aec' %}" class="{% if it_section == 'newspaper_non_aec' %}active{% endif %}">{% icon 'newspaper' %}Non-AEC Newspaper</a>
+  <a href="{% url 'magazine_tenders:non_aec' %}" class="{% if it_section == 'magazine_non_aec' %}active{% endif %}">{% icon 'magazine' %}Non-AEC News</a>
+  <a href="{% url 'tenders:it_runs' %}" class="{% if it_section == 'feature_runs' %}active{% endif %}">{% icon 'history' %}Newspaper &amp; News Runs</a>
+</nav>

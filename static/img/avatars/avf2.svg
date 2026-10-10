@@ -1,0 +1,14 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Researcher avatar">
+  <rect width="100" height="100" fill="#0F0F0D"/>
+  <circle cx="50" cy="55" r="34" fill="#FCD700" opacity=".10"/>
+  <path d="M16 100 C16 74 31 64 50 64 C69 64 84 74 84 100 Z" fill="#FCD700"/>
+  <circle cx="50" cy="41" r="15" fill="#FCD700"/>
+  <path d="M34 43 C33 26 41 21 50 21 C59 21 67 26 66 43 C61 33 56 30 50 30 C44 30 39 33 34 43 Z" fill="#FFFFFF"/>
+  <circle cx="44" cy="42" r="4.4" fill="none" stroke="#0F0F0D" stroke-width="2.4"/>
+  <circle cx="56" cy="42" r="4.4" fill="none" stroke="#0F0F0D" stroke-width="2.4"/>
+  <line x1="48.4" y1="42" x2="51.6" y2="42" stroke="#0F0F0D" stroke-width="2.4"/>
+  <rect x="41" y="79" width="18" height="21" rx="2" fill="#FFFFFF"/>
+  <rect x="45" y="84" width="10" height="2.4" fill="#0F0F0D"/>
+  <rect x="45" y="89" width="10" height="2.4" fill="#0F0F0D"/>
+  <rect x="45" y="94" width="6" height="2.4" fill="#0F0F0D"/>
+</svg>
