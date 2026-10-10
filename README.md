@@ -1,13 +1,14 @@
 # Tender Radar
 
-**A Django platform for tender collection, document extraction and AI-assisted opportunity review.**
+**A Django platform for tender collection, AI-assisted opportunity review and automated personalized tender messages.**
 
-Tender Radar brings procurement opportunities from portal scrapers, newspaper PDFs and magazine/news sources into a searchable dashboard. Teams can review tenders, bookmark opportunities, add notes and manage the sources that supply them.
+Tender Radar brings procurement opportunities from portal scrapers, newspaper PDFs and magazine/news sources into a searchable dashboard. It automates messages to users by matching tender opportunities to each user's specialization, so every user receives the tenders relevant to their field. Teams can also review tenders, bookmark opportunities, add notes and manage the sources that supply them.
 
-**بالعربية:** نظام لجمع العطاءات من المواقع والصحف، تنظيمها والبحث فيها، واستخدام الذكاء الاصطناعي للمساعدة في التصنيف واستخراج المعلومات.
+**بالعربية:** نظام لجمع العطاءات من المواقع والصحف، تنظيمها والبحث فيها، واستخدام الذكاء الاصطناعي للمساعدة في التصنيف واستخراج المعلومات، مع أتمتة رسائل مخصصة لكل مستخدم حسب تخصصه لإرسال العطاءات المناسبة له.
 
 ## Features
 
+- Automated personalized messages that notify each user of tender opportunities matching their specialization.
 - Search and country/category/date filters, tender details, bookmarks and team notes.
 - Python scrapers for government portals and international procurement sources.
 - Newspaper PDF processing, configurable AI extraction and optional OCR verification.
